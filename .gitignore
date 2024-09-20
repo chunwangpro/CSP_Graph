@@ -4,7 +4,7 @@ __pycache__
 */.ipynb_checkpoints/*
 .ipynb_checkpoints
 
-*.ipynb
+# *.ipynb
 *.hdf5
 *.h5
 
