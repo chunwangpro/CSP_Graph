@@ -23,7 +23,7 @@ Consider a 2D version: For a bivariate distribution, represented by x, y, we hav
 
 - Supervised learning, each node has a value represent its probability.
 
-  ![2d_demo_1](./pics/2d_demo_1.png)
+  ![2d_demo_1](./pics/2d_demo_11.png)
 
 ### Output
 
