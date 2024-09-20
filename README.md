@@ -6,6 +6,8 @@ We use graph method (GCN, etc.) to solve Constraint Satisfaction Problems (CSPs)
 
 ## Fomulation
 
+Consider a 2D version: For a bivariate distribution, represented by x, y, we have the following constraints:
+
 ### Constraints
 
 - P( X <= 1) = 1/4
@@ -28,6 +30,12 @@ We use graph method (GCN, etc.) to solve Constraint Satisfaction Problems (CSPs)
 - To the labeled (with color) node, the model output is similar to its ground truth.
 
 ![2d_demo_2](./pics/2d_demo_2.png)
+
+### Evaluate
+
+- Give perfect prediction to further distribution constraints, like:
+- P( X <= 1, Y <= 3) = ?
+- P( X <= 4) = ?
 
 
 ## Language and possible package
