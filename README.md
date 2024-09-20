@@ -41,10 +41,11 @@ Consider a 2D version: For a bivariate distribution, represented by x, y, we hav
 ## Language and possible package
 
 - Python
+- TensorFlow GNN
+- Spektral
 - PyTorch
 - torch_geometric
 - Networkx
-- TensorFlow
 
 ## Teamwork
 
