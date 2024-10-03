@@ -23,13 +23,13 @@ Consider a 2D version: For a bivariate distribution, represented by x, y, we hav
 
 - Supervised learning, each node has a value represent its probability.
 
-  ![2d_demo_1](./pics/2d_demo_11.png)
+  ![2d_grid](./images/2d_grid.png)
 
 ### Output
 
 - To the labeled (with color) node, the model output is similar to its ground truth.
 
-![2d_demo_2](./pics/2d_demo_2.png)
+![2d_demo_2](./images/2d_demo_2.png)
 
 ### Evaluate
 
