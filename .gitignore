@@ -11,6 +11,7 @@ __pycache__
 
 # folders: saved models & results & logs & tensorboard
 docs/
+test/
 results/
 models/
 logs/
