@@ -32,12 +32,12 @@ for j in range(y_grid_size):
         if j < y_grid_size - 1:
             edges.append([node_id, (j + 1) * x_grid_size + i])
 edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
-data = Data(x=node_features, edge_index=edge_index)
+graph = Data(x=node_features, edge_index=edge_index)
 
 
 # visualize the initial graph structure
-G = to_networkx(data, to_undirected=False)
-pos = {i: (data.x[i, 0].item(), data.x[i, 1].item()) for i in range(data.x.shape[0])}
+G = to_networkx(graph, to_undirected=False)
+pos = {i: (graph.x[i, 0].item(), graph.x[i, 1].item()) for i in range(graph.x.shape[0])}
 plt.figure(figsize=(4, 3))
 plt.title("2D Grid with Directed Edges (Out: Up, Right)")
 nx.draw(
@@ -64,8 +64,8 @@ def get_CDF_2D(selected_points):
 # set train set
 train_mask = torch.zeros(num_nodes, dtype=torch.bool)
 train_mask[selected_points] = True
-data.y = get_CDF_2D(selected_points)  # label: CDF F(x)
-data.train_mask = train_mask
+graph.y = get_CDF_2D(selected_points)  # label: CDF F(x)
+graph.train_mask = train_mask
 
 
 # model 1
@@ -75,8 +75,8 @@ class GCN(torch.nn.Module):
         self.conv1 = GCNConv(in_channels, hidden_channels)
         self.conv2 = GCNConv(hidden_channels, out_channels)
 
-    def forward(self, data):
-        x, edge_index = data.x, data.edge_index
+    def forward(self, graph):
+        x, edge_index = graph.x, graph.edge_index
         x = self.conv1(x, edge_index)
         x = F.relu(x)
         x = self.conv2(x, edge_index)
@@ -113,8 +113,8 @@ class GCN(torch.nn.Module):
         self.conv1 = MaxAggConv(in_channels, hidden_channels)
         self.conv2 = MaxAggConv(hidden_channels, out_channels)
 
-    def forward(self, data):
-        x, edge_index = data.x, data.edge_index
+    def forward(self, graph):
+        x, edge_index = graph.x, graph.edge_index
         x = self.conv1(x, edge_index)
         x = F.relu(x)
         x = self.conv2(x, edge_index)
@@ -125,22 +125,22 @@ class GCN(torch.nn.Module):
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # set model
 model = GCN(2, 16, 1).to(device)
-data = data.to(device)
+graph = graph.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
 criterion = torch.nn.MSELoss()
 
 
 # print model output before training
-# out = model(data).squeeze(dim=-1).detach().cpu()
-# out[data.train_mask], data.y[data.train_mask]
+# out = model(graph).squeeze(dim=-1).detach().cpu()
+# out[graph.train_mask], graph.y[graph.train_mask]
 
 
 # train
 def train():
     model.train()
     optimizer.zero_grad()
-    out = model(data).squeeze(dim=-1)
-    loss = criterion(out[data.train_mask], data.y[data.train_mask])
+    out = model(graph).squeeze(dim=-1)
+    loss = criterion(out[graph.train_mask], graph.y[graph.train_mask])
     loss.backward()
     optimizer.step()
     return loss.item()
@@ -154,21 +154,28 @@ for epoch in range(3000):
 
 # model output
 model.eval()
-out = model(data).squeeze(dim=-1).detach().cpu()
-print(f"{out[data.train_mask]=}")
-print(f"{data.y[data.train_mask]=}")
+out = model(graph).squeeze(dim=-1).detach().cpu()
+print(f"{out[graph.train_mask]=}")
+print(f"{graph.y[graph.train_mask]=}")
 print(f"{out=}")
 
 
 # visualization
 fig, axs = plt.subplots(1, 2, figsize=(8, 3))
 # Ground truth
-G = to_networkx(data, to_undirected=False)
-nx.draw(G, pos, with_labels=True, node_color=data.y.cpu(), cmap=plt.get_cmap("coolwarm"), ax=axs[0])
+G = to_networkx(graph, to_undirected=False)
+nx.draw(
+    G,
+    pos,
+    with_labels=True,
+    node_color=graph.y.cpu(),
+    cmap=plt.get_cmap("coolwarm"),
+    ax=axs[0],
+)
 axs[0].set_title("Ground Truth")
 # model output
 masked_out = torch.full(out.shape, float("nan"))
-masked_out[data.train_mask] = out[data.train_mask]
+masked_out[graph.train_mask] = out[graph.train_mask]
 nx.draw(
     G,
     pos,
