@@ -1,5 +1,19 @@
 # CSP_Graph
 
+## File Structure
+
+- Key components:
+
+  - dataset.py : process the dataset.
+  - utils.py : query related functions.
+  - preprocessing.py : graph related functions.
+  - models.py : model related functions.
+
+- Main implements:
+  - 2d_demo.py : demo for proposal.
+  - 2d_real.py : 2d implement of test-1.csv (100 query).
+  - 2d_real.ipynb : 2d implement of test-2.csv (100 query).
+
 ## Goal
 
 We use graph method (GCN, etc.) to solve Constraint Satisfaction Problems (CSPs), start with 2D, 3D, and expand it toward up to 10 dimensions if possible.
@@ -41,12 +55,7 @@ Consider a 2D version: For a bivariate distribution, represented by x, y, we hav
 ## Language and possible package
 
 - Python
-- TensorFlow GNN
-- Spektral
 - PyTorch
 - torch_geometric
 - Networkx
 
-## Teamwork
-
-- Git
