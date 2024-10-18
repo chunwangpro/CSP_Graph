@@ -155,9 +155,9 @@ for epoch in range(3000):
 # model output
 model.eval()
 out = model(graph).squeeze(dim=-1).detach().cpu()
-print(f"{out[graph.train_mask]=}")
-print(f"{graph.y[graph.train_mask]=}")
-print(f"{out=}")
+# print(f"\n{out=}")
+print(f"\n{out[graph.train_mask]=}")
+print(f"\n{graph.y[graph.train_mask]=}")
 
 
 # visualization
