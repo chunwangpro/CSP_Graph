@@ -9,11 +9,13 @@ import sys
 import time
 from copy import deepcopy
 
-import datasets
-import estimators as estimators_lib
+# import estimators as estimators_lib
 import numpy as np
 import pandas as pd
 from scipy import optimize
+
+# import datasets
+from utils import *
 
 # from scipy.sparse import csr_matrix
 
@@ -339,7 +341,7 @@ if __name__ == "__main__":
         method="SLSQP",
         constraints=constraints(),
         bounds=bounds(),
-        # tol=1e-323,
+        # tol=1e-15,
         # options={'maxiter': 1e10},
         # options={'maxiter': 1}, # only for checking the algorithm works
     )
