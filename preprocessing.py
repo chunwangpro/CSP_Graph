@@ -210,3 +210,12 @@ def Visualize_initial_Graph_2D(graph, column_interval_number):
     )
     # plt.savefig("./images/visualization_2d.png", dpi=300)
     plt.show()
+
+
+if __name__ == "__main__":
+    column_interval_number = [100, 100, 100, 10]
+    num_nodes = get_num_nodes(column_interval_number)
+    strides = get_strides(column_interval_number)
+    graph = define_node_edge_multi_dims(
+        column_interval_number, num_nodes, strides, batch_size=100000, device="cpu"
+    )
