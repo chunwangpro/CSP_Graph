@@ -2,6 +2,12 @@
 # 一般来说，增加query size 能覆盖更多的网格点，但是我们现在在对多个列同时采样的时候是选取随机一行中的值，所以graph.y有可能覆盖不到所有的网格点
 # 目前没有用到 batch
 # 对于 test-2.csv，使用 100 query size，从学习效果看，似乎是够的（除了右下角的点误差有点大）
+# 后续
+# 使用 Q-error 评估测试集合
+# 扩展到 3D，5D，10D
+# 尝试对数似然损失函数，将 CDF 视作一个 PDF
+# 尝试 Graph 与 AR 的条件概率 CDF 模型结合，一列一列处理，避免笛卡尔积过大
+# 尝试“用一部份点的集合”替换掉 intervalization, 变成连续的版本，i.e.使用比 internalization 更少的点来拟合 margin CDF
 
 import argparse
 

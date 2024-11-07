@@ -41,11 +41,11 @@ class MaxAggConv(MessagePassing):
     def __init__(self, in_channels, out_channels):
         super(MaxAggConv, self).__init__(aggr="max")  # Use 'max' as the aggregation method
         # Add a linear transformation (learnable weights)
-        self.lin = nn.Linear(in_channels, out_channels)  #
+        self.lin = nn.Linear(in_channels, out_channels)
 
     def forward(self, x, edge_index):
         # Apply the linear transformation before propagating
-        x = self.lin(x)  #
+        x = self.lin(x)
         return self.propagate(edge_index, x=x)
 
     def message(self, x_j):
