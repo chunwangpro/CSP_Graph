@@ -7,7 +7,7 @@ from utils import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
-parser.add_argument("--dataset", type=str, default="test-1", help="Dataset.")
+parser.add_argument("--dataset", type=str, default="test-2", help="Dataset.")
 parser.add_argument("--query-size", type=int, default=1000, help="query size")
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
@@ -17,8 +17,9 @@ parser.add_argument(
 parser.add_argument(
     "--boundary", type=bool, default=False, help="whether add boundary point to train set."
 )
-# parser.add_argument("--channels", type=list, default=[1, 16, 1], help="channels.")
-parser.add_argument("--channels", type=str, default="1,16,1", help="Comma-separated list of channels.")
+parser.add_argument(
+    "--channels", type=str, default="2,16,1", help="Comma-separated list of channels."
+)
 parser.add_argument("--num_layers", type=int, default=3, help="Number of hidden layers.")
 parser.add_argument("--epochs", type=int, default=3000, help="Number of train epochs.")
 parser.add_argument("--bs", type=int, default=1000, help="Batch size.")
@@ -32,8 +33,8 @@ try:
 except:
     # args = parser.parse_args([])
     args, unknown = parser.parse_known_args()
-    
-args.channels = [int(x) for x in args.channels.split(',')]
+
+args.channels = [int(x) for x in args.channels.split(",")]
 
 
 FilePath = (
@@ -47,9 +48,7 @@ def make_directory(directory):
 
 
 resultsPath = f"results/{FilePath}"
-modelPath = f"models/{FilePath}"
 make_directory(resultsPath)
-make_directory(modelPath)
 
 
 print("\nBegin Loading Data ...")
@@ -57,7 +56,8 @@ table, original_table_columns, sorted_table_columns, max_decimal_places = load_a
     args.dataset, resultsPath
 )
 table_size = table.shape
-print(f"{args.dataset}.csv,    shape: {table_size}")
+print(f"{args.dataset}.csv")
+print(f"Table shape: {table_size}")
 print("Done.\n")
 
 
@@ -68,37 +68,48 @@ print("Done.\n")
 
 
 print("Begin Intervalization ...")
-unique_intervals = column_intervalization(query_set, table_size)
+unique_intervals = column_intervalization(query_set, table_size, args)
 column_interval_number = count_unique_vals_num(unique_intervals)
 print(f"{column_interval_number=}")
 print("Done.\n")
 
+
 print("Begin Building Graph and Model ...")
 graph = setup_graph(args, query_set, unique_intervals, column_interval_number, table_size)
-pos = [
-    np.array(np.unravel_index(i, column_interval_number)).reshape(1,-1) + 1
-    for i in range(graph.x.shape[0])
-]
-pos = np.concatenate(pos, axis=0)
-graph.pos = torch.from_numpy(pos).float()
+# pos = [
+#     np.array(np.unravel_index(i, column_interval_number)).reshape(1, -1) + 1
+#     for i in range(graph.x.shape[0])
+# ]
+# pos = np.concatenate(pos, axis=0)
+# graph.pos = torch.from_numpy(pos).float()
 # Visualize_initial_Graph_2D(graph, column_interval_number)
-model = BaseModel(args, modelPath, graph, device)
+model = BaseModel(args, resultsPath, graph, device)
 graph = graph.to(device)
 print("Done.\n")
 
 
-print("Begin Model Training ...")
+print("Begin Model Training ...\n")
 model.fit()
 print("Done.\n")
 
 print("Begin Model Prediction ...")
 # model.load()
 out = model.predict(graph).squeeze(dim=-1).detach().cpu()
-# print(f"{out=}\n")
-# print(f"{out[graph.train_mask]=}\n")
-# print(f"{graph.y[graph.train_mask]=}\n")
-Visualize_compare_Graph_2D(graph, column_interval_number, out, args.dataset, figsize=(30, 15), to_undirected=True, with_labels=False)
+print(f"\nGround Truth:\n{graph.y[graph.train_mask]}")
+print(f"\nModel Output:\n{out[graph.train_mask]}")
+err = (out[graph.train_mask] - graph.y[graph.train_mask]).pow(2).mean()
+print(f"\nFinal MSE: {err}")
+print("\nDone.\n")
 
+
+Visualize_compare_Graph_2D(
+    graph,
+    out,
+    resultsPath,
+    figsize=(15, 6),
+    to_undirected=True,
+    with_labels=False,
+)
 # Table_Generated = m.generate_table_by_row(values, batch_size=10000)
 # Q_error = calculate_Q_error(Table_Generated, query_set)
 # print_Q_error(Q_error, args, resultsPath)

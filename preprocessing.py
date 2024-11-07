@@ -68,8 +68,6 @@ def define_node_edge_multi_dims(
     """
     Define the node and edge for multi-dim grid graph, using PyTorch.
     """
-    # initialize the nodes
-    node_features = torch.arange(num_nodes, device=device, dtype=torch.float32).reshape(-1, 1)
 
     def compute_edges_batch(start, end, column_interval_number, strides, device):
         indices = torch.arange(start, end, device=device, dtype=torch.int64)
@@ -101,7 +99,14 @@ def define_node_edge_multi_dims(
     # Build the graph
     edges = torch.cat(edges, dim=0)
     edge_index = edges.t().contiguous()
+
+    # initialize the nodes
+    node_features = torch.arange(num_nodes, device=device, dtype=torch.float32).reshape(-1, 1)
     graph = Data(x=node_features, edge_index=edge_index)
+    # graph.pos store the multi-dim coordinates of each node (starts from [0, 0]), whereas graph.x store the 1D indices of each node (stars from 0).
+    node_features = torch.arange(num_nodes, device=device, dtype=torch.float32)
+    graph.pos = torch_unravel_index(node_features, column_interval_number, strides)
+
     print("Nodes:", graph.num_nodes)
     print("Edges:", graph.num_edges)
     # check the correctness of the graph edge number
