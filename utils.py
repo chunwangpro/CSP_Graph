@@ -60,7 +60,7 @@ def column_unique_interval(table):
     return column_interval
 
 
-def column_intervalization(query_set, table_size):
+def column_intervalization(query_set, table_size, args):
     # get unique intervals for each column, the intervals are less than the unique values
     column_interval = {i: set() for i in range(table_size[1])}
     for query in query_set:
@@ -70,6 +70,9 @@ def column_intervalization(query_set, table_size):
     # Apply the column_interval to <, <=, >, >=, =
     for k, v in column_interval.items():
         interval_list = sorted(list(v))
+        if args.model == "1-input":
+            column_interval[k] = interval_list
+            continue
         add_small = 2 * interval_list[0] - interval_list[1]
         add_big_1 = 2 * interval_list[-1] - interval_list[-2]
         add_big_2 = 3 * interval_list[-1] - 2 * interval_list[-2]
