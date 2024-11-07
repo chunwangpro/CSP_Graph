@@ -79,7 +79,6 @@ class GCN_2(torch.nn.Module):
         # x = F.relu(x)
         x = self.layers[-1](x, edge_index)
         # x = torch.sigmoid(x)
-        
         return x
 
 
@@ -156,41 +155,39 @@ def set_up_model(args, query_set, unique_intervals, modelPath, table_size):
 
 def Visualize_compare_Graph_2D(
     graph,
-    column_interval_number,
     out,
     save_path,
     figsize=(15, 6),
-    to_undirected=False,
-    with_labels=True,
+    to_undirected=True,
+    with_labels=False,
 ):
-    # compare graph we learned with the initial graph
     fig, axs = plt.subplots(1, 2, figsize=figsize)
     G = to_networkx(graph, to_undirected=to_undirected)
-    pos = {
-        i: np.array(np.unravel_index(i, column_interval_number)) + 1
-        for i in range(graph.x.shape[0])
-    }
-    # Set the color normalization to range from 0 to 1
-    vmin, vmax = 0, 1
+    # pos = {
+    #     i: np.array(np.unravel_index(i, column_interval_number)) + 1
+    #     for i in range(graph.x.shape[0])
+    # }
+    pos = {i: v for i, v in enumerate(graph.pos)}
+    vmin, vmax = 0, 1  # color range (0, 1)
 
-    # Ground truth
+    # Plot 1: Ground truth
     nx.draw(
         G,
         pos,
         with_labels=with_labels,
         node_color=graph.y.cpu(),
         cmap=plt.get_cmap("coolwarm"),
-        vmin=vmin, vmax=vmax,
+        vmin=vmin,
+        vmax=vmax,
         ax=axs[0],
     )
-    print(f"graph.y: {graph.y[graph.train_mask]}")
     axs[0].set_title("Ground Truth")
 
-    # Add labels to nodes for ground truth
+    # Add labels (selectivity) to nodes
     labels = {i: f"{val:.2f}" for i, val in enumerate(graph.y.cpu()) if not torch.isnan(val)}
     nx.draw_networkx_labels(G, pos, labels=labels, ax=axs[0])
 
-    # Model output
+    # Plot 2: Model output
     masked_out = torch.full(out.shape, float("nan"))
     masked_out[graph.train_mask] = out[graph.train_mask]
     nx.draw(
@@ -199,31 +196,29 @@ def Visualize_compare_Graph_2D(
         with_labels=with_labels,
         node_color=masked_out.detach().cpu(),
         cmap=plt.get_cmap("coolwarm"),
-        vmin=vmin, vmax=vmax,
+        vmin=vmin,
+        vmax=vmax,
         ax=axs[1],
     )
-    print(f"masked_out: {masked_out[graph.train_mask]}")
     axs[1].set_title("Model output")
 
-    # Add labels to nodes for model output
+    # Add labels (selectivity) to nodes
     labels_out = {i: f"{val:.2f}" for i, val in enumerate(masked_out.cpu()) if not torch.isnan(val)}
     nx.draw_networkx_labels(G, pos, labels=labels_out, ax=axs[1])
 
-    # Set a shared colorbar for the second plot on the far right
-    colorbar = fig.colorbar(
-        axs[1].collections[0],
-        ax=axs,
-        orientation='vertical',
-        fraction=0.05,
-        pad=0.05,
-        location='right'
-    )
-    colorbar.set_label("Node Values")
-    colorbar.set_ticks([vmin, vmax])
+    # Set a shared colorbar
+    plt.colorbar(axs[1].collections[0], ax=axs[1], label="Selectivity")
+    # colorbar = fig.colorbar(
+    #     axs[1].collections[0],
+    #     ax=axs,
+    #     orientation="vertical",
+    #     fraction=0.05,
+    #     pad=0.05,
+    #     location="right",
+    # )
+    # colorbar.set_label("Node Values")
+    # colorbar.set_ticks([vmin, vmax])
 
     plt.tight_layout()
-    plt.savefig(f"images/2d_real_{save_path}.png", dpi=300)
-    # plt.show()
-    
-    err = (masked_out[graph.train_mask] - graph.y[graph.train_mask]).pow(2).mean()
-    print(f"MSE: {err}")
+    plt.savefig(f"{save_path}/compare_plot.png", dpi=300)
+    plt.show()
