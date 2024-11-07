@@ -28,7 +28,15 @@ def get_strides(column_interval_number):
 
 def torch_unravel_index(indices, column_interval_number, strides):
     """
-    Same as np.unravel_index. Pytorch can leverage GPU for parallel computing, which is more efficient than numpy.
+    Samilar as np.unravel_index, convert 1D indices to multi-dim coordinates, but we need to provide column_interval_number and strides (can be calculated by get_strides).
+    Pytorch can leverage GPU for parallel computing, more efficient than numpy, and support vecterized operations.
+
+    example:
+    indices = torch.tensor([0, 6])
+    column_interval_number = [5, 5]
+    strides = get_strides(column_interval_number)
+
+    torch_unravel_index(indices, column_interval_number, strides) --> torch.tensor([[0, 0], [1,1]])
     """
     return torch.stack(
         [
@@ -41,7 +49,15 @@ def torch_unravel_index(indices, column_interval_number, strides):
 
 def torch_ravel_multi_index(coords, strides):
     """
-    Same as np.ravel_multi_index. Pytorch can leverage GPU for parallel computing, which is more efficient than numpy.
+    Similar as np.ravel_multi_index, convert multi-dim coordinates to 1D indices, but we need to provide strides (can be calculated by get_strides).
+    Pytorch can leverage GPU for parallel computing, more efficient than numpy, and support vecterized operations.
+
+    example:
+    coords = torch.tensor([[0, 0], [1, 1]])
+    column_interval_number = [5, 5]
+    strides = get_strides(column_interval_number)
+
+    torch_ravel_multi_index(coords, strides) --> tensor([0, 6])
     """
     return torch.sum(coords * strides, dim=1, dtype=torch.int64)
 
@@ -111,7 +127,7 @@ def build_train_set_1_input(query_set, unique_intervals, args, table_size):
     """
     X = []
     for query in query_set:
-        x = [v[-3] for v in unique_intervals.values()]
+        x = [v[-1] for v in unique_intervals.values()]
         idxs, _, vals, _ = query
         for i, v in zip(idxs, vals):
             x[i] = v
@@ -127,7 +143,7 @@ def build_train_set_1_input(query_set, unique_intervals, args, table_size):
 
     # add boundary
     if args.boundary:
-        train = add_boundary_1_input(train, unique_intervals, args.boundary)
+        train = add_boundary_1_input(train, unique_intervals)
 
     # shuffle and split
     # np.random.shuffle(train)
@@ -190,7 +206,7 @@ def setup_graph(args, query_set, unique_intervals, column_interval_number, table
     return graph
 
 
-def Visualize_initial_Graph_2D(graph, column_interval_number):
+def Visualize_initial_Graph_2D(graph, column_interval_number, save_path):
     # visualize the initial graph structure
     G = to_networkx(graph, to_undirected=False)
     pos = {
@@ -208,8 +224,8 @@ def Visualize_initial_Graph_2D(graph, column_interval_number):
         arrows=True,
         arrowstyle="-|>",
     )
-    # plt.savefig("./images/visualization_2d.png", dpi=300)
-    plt.show()
+    plt.savefig(f"{save_path}/initial_graph.png", dpi=300)
+    # plt.show()
 
 
 if __name__ == "__main__":
