@@ -26,7 +26,7 @@ if torch.cuda.is_available():
 # elif torch.backends.mps.is_built() and torch.backends.mps.is_available():
 #     device = torch.device("mps")
 #     os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-print("PyTorch is using device:", device)
+print("\nPyTorch is using device:", device)
 
 # Operators dictionary
 OPS = {
