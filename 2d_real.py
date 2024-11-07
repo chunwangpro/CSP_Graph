@@ -17,7 +17,9 @@ parser.add_argument(
 parser.add_argument(
     "--boundary", type=bool, default=False, help="whether add boundary point to train set."
 )
-parser.add_argument("--channels", type=list, default=[1, 16, 1], help="channels.")
+# parser.add_argument("--channels", type=list, default=[1, 16, 1], help="channels.")
+parser.add_argument("--channels", type=str, default="1,16,1", help="Comma-separated list of channels.")
+parser.add_argument("--num_layers", type=int, default=3, help="Number of hidden layers.")
 parser.add_argument("--epochs", type=int, default=3000, help="Number of train epochs.")
 parser.add_argument("--bs", type=int, default=1000, help="Batch size.")
 parser.add_argument("--loss", type=str, default="MSE", help="Loss.")
@@ -30,6 +32,8 @@ try:
 except:
     # args = parser.parse_args([])
     args, unknown = parser.parse_known_args()
+    
+args.channels = [int(x) for x in args.channels.split(',')]
 
 
 FilePath = (
@@ -71,6 +75,12 @@ print("Done.\n")
 
 print("Begin Building Graph and Model ...")
 graph = setup_graph(args, query_set, unique_intervals, column_interval_number, table_size)
+pos = [
+    np.array(np.unravel_index(i, column_interval_number)).reshape(1,-1) + 1
+    for i in range(graph.x.shape[0])
+]
+pos = np.concatenate(pos, axis=0)
+graph.pos = torch.from_numpy(pos).float()
 # Visualize_initial_Graph_2D(graph, column_interval_number)
 model = BaseModel(args, modelPath, graph, device)
 graph = graph.to(device)
@@ -87,7 +97,7 @@ out = model.predict(graph).squeeze(dim=-1).detach().cpu()
 # print(f"{out=}\n")
 # print(f"{out[graph.train_mask]=}\n")
 # print(f"{graph.y[graph.train_mask]=}\n")
-Visualize_compare_Graph_2D(graph, column_interval_number, out, figsize=(15, 6), with_labels=True)
+Visualize_compare_Graph_2D(graph, column_interval_number, out, args.dataset, figsize=(30, 15), to_undirected=True, with_labels=False)
 
 # Table_Generated = m.generate_table_by_row(values, batch_size=10000)
 # Q_error = calculate_Q_error(Table_Generated, query_set)

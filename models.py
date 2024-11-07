@@ -17,18 +17,22 @@ class ModelTypeError(ValueError):
 
 # model 1
 class GCN(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers=3):
         super(GCN, self).__init__()
-        self.conv1 = GCNConv(in_channels, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, out_channels)
+        self.layers = nn.ModuleList()
+        self.layers.append(GCNConv(in_channels, hidden_channels))
+        for _ in range(num_layers):
+            self.layers.append(GCNConv(hidden_channels, hidden_channels))
+        self.layers.append(GCNConv(hidden_channels, out_channels))
 
     def forward(self, graph):
-        x, edge_index = graph.x, graph.edge_index
-        x = self.conv1(x, edge_index)
-        x = F.relu(x)
-        x = self.conv2(x, edge_index)
-        x = F.sigmoid(x)
-        x = torch.max(x, dim=1)[0]  # torch.max(x, dim=1, keepdim=True)[0]
+        # x, edge_index = graph.x, graph.edge_index
+        x, edge_index = graph.pos, graph.edge_index
+        for i, layer in enumerate(self.layers[:-1]):
+            x = layer(x, edge_index)
+            x = F.silu(x)
+        x = self.layers[-1](x, edge_index)
+        # x = F.sigmoid(x)
         return x
 
 
@@ -55,16 +59,27 @@ class MaxAggConv(MessagePassing):
 
 
 class GCN_2(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers=3):
         super(GCN_2, self).__init__()
-        self.conv1 = MaxAggConv(in_channels, hidden_channels)
-        self.conv2 = MaxAggConv(hidden_channels, out_channels)
+        self.layers = nn.ModuleList()
+        # self.batch_norms = nn.ModuleList()
+        self.layers.append(MaxAggConv(in_channels, hidden_channels))
+        # self.batch_norms.append(nn.BatchNorm1d(hidden_channels))
+        for _ in range(num_layers):
+            self.layers.append(MaxAggConv(hidden_channels, hidden_channels))
+            # self.batch_norms.append(nn.BatchNorm1d(hidden_channels))
+        self.layers.append(MaxAggConv(hidden_channels, out_channels))
 
     def forward(self, graph):
         x, edge_index = graph.x, graph.edge_index
-        x = self.conv1(x, edge_index)
-        x = F.relu(x)
-        x = self.conv2(x, edge_index)
+        for i, layer in enumerate(self.layers[:-1]):
+            x = layer(x, edge_index)
+            x = F.silu(x)
+            # x = self.batch_norms[i](x)
+        # x = F.relu(x)
+        x = self.layers[-1](x, edge_index)
+        # x = torch.sigmoid(x)
+        
         return x
 
 
@@ -74,7 +89,8 @@ class BaseModel:
         self.args = args
         self.path = path
         self.graph = graph
-        self.model = GCN_2(*args.channels).to(device)
+        self.model = GCN(*args.channels, args.num_layers).to(device)
+        # self.model = GCN_2(*args.channels, args.num_layers).to(device)
         self.optimizer = self._set_optimizer()
         self.criterion = self._set_loss_function()
 
@@ -142,6 +158,7 @@ def Visualize_compare_Graph_2D(
     graph,
     column_interval_number,
     out,
+    save_path,
     figsize=(15, 6),
     to_undirected=False,
     with_labels=True,
@@ -153,18 +170,27 @@ def Visualize_compare_Graph_2D(
         i: np.array(np.unravel_index(i, column_interval_number)) + 1
         for i in range(graph.x.shape[0])
     }
-    # ground truth
+    # Set the color normalization to range from 0 to 1
+    vmin, vmax = 0, 1
+
+    # Ground truth
     nx.draw(
         G,
         pos,
         with_labels=with_labels,
         node_color=graph.y.cpu(),
         cmap=plt.get_cmap("coolwarm"),
+        vmin=vmin, vmax=vmax,
         ax=axs[0],
     )
+    print(f"graph.y: {graph.y[graph.train_mask]}")
     axs[0].set_title("Ground Truth")
 
-    # model output
+    # Add labels to nodes for ground truth
+    labels = {i: f"{val:.2f}" for i, val in enumerate(graph.y.cpu()) if not torch.isnan(val)}
+    nx.draw_networkx_labels(G, pos, labels=labels, ax=axs[0])
+
+    # Model output
     masked_out = torch.full(out.shape, float("nan"))
     masked_out[graph.train_mask] = out[graph.train_mask]
     nx.draw(
@@ -173,11 +199,31 @@ def Visualize_compare_Graph_2D(
         with_labels=with_labels,
         node_color=masked_out.detach().cpu(),
         cmap=plt.get_cmap("coolwarm"),
+        vmin=vmin, vmax=vmax,
         ax=axs[1],
     )
+    print(f"masked_out: {masked_out[graph.train_mask]}")
     axs[1].set_title("Model output")
 
-    plt.colorbar(axs[1].collections[0], ax=axs[1])
+    # Add labels to nodes for model output
+    labels_out = {i: f"{val:.2f}" for i, val in enumerate(masked_out.cpu()) if not torch.isnan(val)}
+    nx.draw_networkx_labels(G, pos, labels=labels_out, ax=axs[1])
+
+    # Set a shared colorbar for the second plot on the far right
+    colorbar = fig.colorbar(
+        axs[1].collections[0],
+        ax=axs,
+        orientation='vertical',
+        fraction=0.05,
+        pad=0.05,
+        location='right'
+    )
+    colorbar.set_label("Node Values")
+    colorbar.set_ticks([vmin, vmax])
+
     plt.tight_layout()
-    # plt.savefig("./images/2D_compare.png", dpi=300)
-    plt.show()
+    plt.savefig(f"images/2d_real_{save_path}.png", dpi=300)
+    # plt.show()
+    
+    err = (masked_out[graph.train_mask] - graph.y[graph.train_mask]).pow(2).mean()
+    print(f"MSE: {err}")
