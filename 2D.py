@@ -1,3 +1,8 @@
+# 目前估计能做 4 列 [100,100,100,10]，再多内存就存不下 node了
+# 一般来说，增加query size 能覆盖更多的网格点，但是我们现在在对多个列同时采样的时候是选取随机一行中的值，所以graph.y有可能覆盖不到所有的网格点
+# 目前没有用到 batch
+# 对于 test-2.csv，使用 100 query size，从学习效果看，似乎是够的（除了右下角的点误差有点大）
+
 import argparse
 
 from dataset import *
@@ -26,6 +31,12 @@ parser.add_argument("--bs", type=int, default=1000, help="Batch size.")
 parser.add_argument("--loss", type=str, default="MSE", help="Loss.")
 parser.add_argument("--opt", type=str, default="adam", help="Optimizer.")
 parser.add_argument("--lr", type=float, default=1e-2, help="learning rate")
+parser.add_argument(
+    "--plot_labels",
+    type=bool,
+    default=False,
+    help="whether add labels (selectivity) in compare plot.",
+)
 
 
 try:
@@ -105,8 +116,9 @@ print("\nDone.\n")
 Visualize_compare_Graph_2D(
     graph,
     out,
+    args,
     resultsPath,
-    figsize=(15, 6),
+    figsize=(30, 15),
     to_undirected=True,
     with_labels=False,
 )
