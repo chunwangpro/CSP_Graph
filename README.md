@@ -10,9 +10,9 @@
   - models.py : model related functions.
 
 - Main implements:
-  - 2d_demo.py : demo for proposal.
-  - 2d_real.py : 2d implement of test-1.csv (100 query).
-  - 2d_real.ipynb : 2d implement of test-2.csv (100 query).
+  - demo.py : demo for proposal.
+  - 2D.py : 2d implement of test-2.csv (1000 query).
+  - 3D.py : 3d implement of test-3.csv (1000 query).
 
 ## Goal
 
@@ -31,7 +31,7 @@ Consider a 2D version: For a bivariate distribution, represented by x, y, we hav
 
 ### Models
 
-- 2D-Grid with each node present  P( X <= i, Y <= j) 
+- 2D-Grid with each node present  P( X <= i, Y <= j)
 
 - Directed graph with outedge to upper and right node (Monotonicity).
 
