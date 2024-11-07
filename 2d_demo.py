@@ -43,8 +43,8 @@ plt.title("2D Grid with Directed Edges (Out: Up, Right)")
 nx.draw(
     G, pos, with_labels=True, node_color="lightblue", node_size=500, arrows=True, arrowstyle="-|>"
 )
-# plt.savefig("./images/2d_grid.png", dpi=300)
-plt.show()
+plt.savefig("./images/2d_grid.png", dpi=300)
+# plt.show()
 
 
 # select points to be labeled
@@ -158,7 +158,8 @@ out = model(graph).squeeze(dim=-1).detach().cpu()
 # print(f"\n{out=}")
 print(f"\n{out[graph.train_mask]=}")
 print(f"\n{graph.y[graph.train_mask]=}")
-
+err = (out[graph.train_mask] - graph.y[graph.train_mask]).pow(2).mean()
+print(f"Final MSE: {err}")
 
 # visualization
 fig, axs = plt.subplots(1, 2, figsize=(8, 3))
@@ -171,6 +172,8 @@ nx.draw(
     node_color=graph.y.cpu(),
     cmap=plt.get_cmap("coolwarm"),
     ax=axs[0],
+    vmin=0,
+    vmax=1,
 )
 axs[0].set_title("Ground Truth")
 # model output
@@ -183,10 +186,12 @@ nx.draw(
     node_color=masked_out.detach().cpu(),
     cmap=plt.get_cmap("coolwarm"),
     ax=axs[1],
+    vmin=0,
+    vmax=1,
 )
 axs[1].set_title("Model output")
 
 plt.colorbar(axs[1].collections[0], ax=axs[1])
 plt.tight_layout()
-# plt.savefig("./images/2D_demo.png", dpi=300)
-plt.show()
+plt.savefig("./images/2D_demo.png", dpi=300)
+# plt.show()
