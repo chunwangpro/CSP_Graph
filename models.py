@@ -156,6 +156,7 @@ def set_up_model(args, query_set, unique_intervals, modelPath, table_size):
 def Visualize_compare_Graph_2D(
     graph,
     out,
+    args,
     save_path,
     figsize=(15, 6),
     to_undirected=True,
@@ -184,8 +185,9 @@ def Visualize_compare_Graph_2D(
     axs[0].set_title("Ground Truth")
 
     # Add labels (selectivity) to nodes
-    labels = {i: f"{val:.2f}" for i, val in enumerate(graph.y.cpu()) if not torch.isnan(val)}
-    nx.draw_networkx_labels(G, pos, labels=labels, ax=axs[0])
+    if args.plot_labels:
+        labels = {i: f"{val:.2f}" for i, val in enumerate(graph.y.cpu()) if not torch.isnan(val)}
+        nx.draw_networkx_labels(G, pos, labels=labels, ax=axs[0])
 
     # Plot 2: Model output
     masked_out = torch.full(out.shape, float("nan"))
@@ -203,8 +205,11 @@ def Visualize_compare_Graph_2D(
     axs[1].set_title("Model output")
 
     # Add labels (selectivity) to nodes
-    labels_out = {i: f"{val:.2f}" for i, val in enumerate(masked_out.cpu()) if not torch.isnan(val)}
-    nx.draw_networkx_labels(G, pos, labels=labels_out, ax=axs[1])
+    if args.plot_labels:
+        labels_out = {
+            i: f"{val:.2f}" for i, val in enumerate(masked_out.cpu()) if not torch.isnan(val)
+        }
+        nx.draw_networkx_labels(G, pos, labels=labels_out, ax=axs[1])
 
     # Set a shared colorbar
     plt.colorbar(axs[1].collections[0], ax=axs[1], label="Selectivity")
