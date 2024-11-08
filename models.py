@@ -144,7 +144,7 @@ class BaseModel:
         print("Model loaded.")
 
 
-def set_up_model(args, query_set, unique_intervals, modelPath, table_size):
+def set_up_model(args, query_set, column_intervals, modelPath, table_size):
     if args.model == "1-input":
         pass
     elif args.model == "2-input":

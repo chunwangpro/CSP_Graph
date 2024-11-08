@@ -8,8 +8,8 @@
 # 尝试对数似然损失函数，将 CDF 视作一个 PDF
 # 尝试 Graph 与 AR 的条件概率 CDF 模型结合，一列一列处理，避免笛卡尔积过大
 # 尝试“用一部份点的集合”替换掉 intervalization, 变成连续的版本，i.e.使用比 internalization 更少的点来拟合 margin CDF
-
 import argparse
+import os
 
 from dataset import *
 from models import *
@@ -55,7 +55,7 @@ args.channels = [int(x) for x in args.channels.split(",")]
 
 
 FilePath = (
-    f"{args.dataset}_{args.query_size}_{args.min_conditions}_{args.max_conditions}_{args.model}"
+    f"{args.model}_{args.dataset}_{args.query_size}_({args.min_conditions}_{args.max_conditions})"
 )
 
 
@@ -78,21 +78,21 @@ print(f"Table shape: {table_size}")
 print("Done.\n")
 
 
-print("Begin Generating Queries Set ...")
+print("Begin Generating Queries ...")
 rng = np.random.RandomState(42)
 query_set = [generate_random_query(table, args, rng) for _ in tqdm(range(args.query_size))]
 print("Done.\n")
 
 
 print("Begin Intervalization ...")
-unique_intervals = column_intervalization(query_set, table_size, args)
-column_interval_number = count_unique_vals_num(unique_intervals)
+column_intervals = column_intervalization(query_set, table_size, args)
+column_interval_number = count_unique_vals_num(column_intervals)
 print(f"{column_interval_number=}")
 print("Done.\n")
 
 
 print("Begin Building Graph and Model ...")
-graph = setup_graph(args, query_set, unique_intervals, column_interval_number, table_size)
+graph = setup_graph(args, query_set, column_intervals, column_interval_number, table_size)
 # pos = [
 #     np.array(np.unravel_index(i, column_interval_number)).reshape(1, -1) + 1
 #     for i in range(graph.x.shape[0])
@@ -128,13 +128,24 @@ Visualize_compare_Graph_2D(
     to_undirected=True,
     with_labels=False,
 )
+
+
+# print("Begin Generating Data ...")
 # Table_Generated = m.generate_table_by_row(values, batch_size=10000)
-# Q_error = calculate_Q_error(Table_Generated, query_set)
-# print_Q_error(Q_error, args, resultsPath)
+# print("Done.\n")
+
+
+# print("Summary of Q-error:")
+# print(args)
+# df = print_Q_error(Table_Generated, query_set)
+# df.to_csv(f"{resultsPath}/Q_error.csv", index=True, header=False)
+# print(df)
 # print(f"\n Original table shape : {table_size}")
 # print(f"Generated table shape : {Table_Generated.shape}")
 
+# print("Begin Recovering Data ...")
 # recovered_Table_Generated = recover_table_as_original(
 #     Table_Generated, original_table_columns, sorted_table_columns, max_decimal_places
 # )
 # recovered_Table_Generated.to_csv(f"{resultsPath}/generated_table.csv", index=False, header=False)
+# print("Done.\n")
