@@ -39,7 +39,7 @@ def convert_queries_to_constraints(num_rows, num_columns, queries):
     # Add domain constraints (e.g., values should be in a reasonable range)
     for row in db:
         for cell in row:
-            solver.add(cell >= 0, cell <= 100)  # Example: cell values between 0 and 100
+            solver.add(cell >= 0, cell <= 1000)  # Example: cell values between 0 and 1000
 
     # Convert each query into a z3 constraint and add it to the solver
     for idxs, ops, vals, card in queries:
@@ -73,10 +73,7 @@ def convert_queries_to_constraints(num_rows, num_columns, queries):
     return solver, db
 
 resultsPath = f"results/{FilePath}"
-modelPath = f"models/{FilePath}"
 make_directory(resultsPath)
-make_directory(modelPath)
-
 
 print("\nBegin Loading Data ...")
 table, original_table_columns, sorted_table_columns, max_decimal_places = load_and_process_dataset(
