@@ -51,7 +51,7 @@ def Assign_query_to_interval_idx(query_set, n_column, column_interval, column_in
 
     Refer to column_interval for the interval index mapping. You can use reveal_query_to_interval_idx(query_to_interval_idx, column_interval) to convert the interval index to the original query format, to better understanding.
     """
-    query_to_interval_idx = {i: [[] for i in range(n_column)] for i in range(len(query_set))}
+    query_to_interval_idx = {i: [[] for _ in range(n_column)] for i in range(len(query_set))}
     for i in range(len(query_set)):
         idxs, ops, vals, _ = query_set[i]
         for j in range(len(idxs)):
@@ -99,7 +99,7 @@ def Define_query_error_constraints(query_set, query_to_full_interval_idx, column
 
 
 def x0(total_x, n_row):
-    # use average value to initialize the x: n_row / total_x
+    # There are (total_x) x variables, each x is initialized by average: n_row / total_x
     return np.ones(total_x) * n_row / total_x
 
 
@@ -110,13 +110,13 @@ def bounds(total_x, n_row):
 
 def constraints(n_row):
     # constraints is always limited to zero when using SLSQP
-    # sum of all x should always equal to n_row
+    # (sum of x - n_row) should always equal to zero
     return [{"type": "eq", "fun": lambda x: n_row - x.sum()}]
 
 
 def fun(query_error_list, n_row):
     def error(x):
-        # divided by n_row or (n_row)**2 to limit the error to a small range near 0, to avoid the overflow of the optimization
+        # divided by n_row or (n_row)**2 to limit the error to a small range near zero, to avoid the overflow of the optimization
         return sum([query_err(x) ** 2 for query_err in query_error_list]) / (n_row)  # **2
 
     return error
@@ -136,11 +136,9 @@ def randomized_rouding(x):
 
 def generate_table_data(column_interval, int_x, n_column, column_interval_number):
     Table_Generated = np.empty((0, n_column), dtype=np.float32)
-
     column_to_x = [list(range(i)) for i in column_interval_number]
     all_x = np.array([x for x in itertools.product(*column_to_x)], dtype=np.uint16)
     # all_x.shape = (total_x, n_column), total_x == len(int_x)
-
     for i in range(len(int_x)):
         if int_x[i] < 1:
             continue
@@ -158,11 +156,13 @@ parser.add_argument("--query-size", type=int, default=10, help="query size")
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
 
+
 try:
     args = parser.parse_args()
 except:
     # args = parser.parse_args([])
     args, unknown = parser.parse_known_args()
+
 
 FilePath = (
     f"{args.model}_{args.dataset}_{args.query_size}_({args.min_conditions}_{args.max_conditions})"
@@ -237,7 +237,6 @@ res = optimize.minimize(
 toc = time.time()
 print("Find a solution successfully: ", res.success)
 time_count(tic, toc)
-
 print("\n Optimize.minimize Solver Status: \n", res)
 # int_x = randomized_rouding(res.x).astype(int)  # original paper's rouding menthod has worse performance
 int_x = np.round(res.x).astype(int)  # simple rounding has better performance
