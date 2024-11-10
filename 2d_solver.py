@@ -1,4 +1,5 @@
 import argparse
+import time
 
 from dataset import *
 from models import *
@@ -9,12 +10,12 @@ from z3 import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
-parser.add_argument("--dataset", type=str, default="test-1", help="Dataset.")
-parser.add_argument("--query-size", type=int, default=1000, help="query size")
+parser.add_argument("--dataset", type=str, default="test-2", help="Dataset.")
+parser.add_argument("--query-size", type=int, default=200, help="query size")
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
 
-try:
+try: 
     args = parser.parse_args()
 except:
     # args = parser.parse_args([])
@@ -98,12 +99,19 @@ num_columns = table_size[1]
 # Convert queries to constraints and create the solver
 solver, satisfied_table = convert_queries_to_constraints(num_rows, num_columns, query_set)
 
+start_time = time.time()
+
 # Check if the solution is satisfiable
 if solver.check() == sat:
+    end_time = time.time()
     model = solver.model()
     print("Satisfiable solution found:")
     for r in range(num_rows):
         row_values = [model[satisfied_table[r][c]] if model[satisfied_table[r][c]] is not None else '?' for c in range(num_columns)]
         print(f"{r}: {row_values}")
 else:
+    end_time = time.time()
     print("No solution found.")
+
+elapsed_time = end_time - start_time
+print(f"Elapsed time: {elapsed_time:.2f} seconds")
