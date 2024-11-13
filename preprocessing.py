@@ -192,8 +192,36 @@ def define_train_mask_for_graph(X, y, graph, num_nodes, strides, column_interval
     graph.train_mask = train_mask
     return graph
 
+def define_train_test_masks_for_graph(X, y, graph, num_nodes, strides, column_intervals, test_ratio=0.2):
+    """
+    Define train and test masks for the graph, creating a semi-supervised split.
+    """
+    X = torch.tensor(X, device=device)
+    X = replace_with_index(X, column_intervals)
+    selected_points = torch_ravel_multi_index(X, strides)
+    graph.y = torch.full((num_nodes,), float("nan"))
+    graph.y[selected_points] = torch.tensor(y).squeeze()
+    
+    # Create train mask
+    train_mask = torch.zeros(num_nodes, dtype=torch.bool)
+    train_mask[selected_points] = True
+    
+    # Now create test mask by sampling a portion of the selected points
+    test_mask = torch.zeros(num_nodes, dtype=torch.bool)
+    num_test = int(len(selected_points) * test_ratio)
+    test_indices = selected_points[torch.randperm(len(selected_points))[:num_test]]
+    test_mask[test_indices] = True
 
-def setup_graph(args, query_set, column_intervals, column_interval_number, table_size):
+    # Ensure train_mask excludes test_mask points
+    train_mask[test_indices] = False
+
+    # Assign the masks to the graph
+    graph.train_mask = train_mask
+    graph.test_mask = test_mask
+    return graph
+
+
+def setup_graph(args, query_set, column_intervals, column_interval_number, table_size, test=True):
     """
     Setup the training set and model based on the model type.
     X: Train X, query intervals. e.g. [a,b) for each column in 2-input model; (-inf, a] for each column in 1-input model.
@@ -207,7 +235,10 @@ def setup_graph(args, query_set, column_intervals, column_interval_number, table
         column_interval_number, num_nodes, strides, batch_size=100000, device=device
     )
     X, y = build_train_set_1_input(query_set, column_intervals, args, table_size)
-    graph = define_train_mask_for_graph(X, y, graph, num_nodes, strides, column_intervals)
+    if test:
+        graph = define_train_test_masks_for_graph(X, y, graph, num_nodes, strides, column_intervals)
+    else:
+        graph = define_train_mask_for_graph(X, y, graph, num_nodes, strides, column_intervals)
     return graph
 
 

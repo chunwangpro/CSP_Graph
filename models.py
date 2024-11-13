@@ -32,7 +32,7 @@ class GCN(torch.nn.Module):
             x = layer(x, edge_index)
             x = F.silu(x)
         x = self.layers[-1](x, edge_index)
-        # x = F.sigmoid(x)
+        x = F.sigmoid(x)
         return x
 
 
@@ -124,6 +124,16 @@ class BaseModel:
         loss.backward()
         self.optimizer.step()
         return loss.item()
+    
+    def evaluate(self):
+        """Evaluate the model on test nodes"""
+        self.model.eval()
+        with torch.no_grad():
+            out = self.model(self.graph).squeeze(dim=-1)
+            # Calculate MSE only for test nodes
+            test_loss = self.criterion(out[self.graph.test_mask], self.graph.y[self.graph.test_mask])
+            print(f"Test MSE: {test_loss.item()}")
+            return test_loss.item()
 
     def fit(self):
         """Train the model"""
@@ -158,72 +168,109 @@ def Visualize_compare_Graph_2D(
     out,
     args,
     save_path,
-    figsize=(15, 6),
+    figsize=(10, 8),
     to_undirected=True,
     with_labels=False,
+    font_size=24,
+    colorbar_label="Node Values",
+    node_size = 100,
 ):
-    fig, axs = plt.subplots(1, 2, figsize=figsize)
+    fig, axs = plt.subplots(2, 2, figsize=figsize, gridspec_kw={'hspace': 0.15, 'wspace': 0.15})
     G = to_networkx(graph, to_undirected=to_undirected)
-    # pos = {
-    #     i: np.array(np.unravel_index(i, column_interval_number)) + 1
-    #     for i in range(graph.x.shape[0])
-    # }
     pos = {i: v for i, v in enumerate(graph.pos)}
-    vmin, vmax = 0, 1  # color range (0, 1)
+    vmin, vmax = 0, 1  # Set color range (adjust as needed)
 
-    # Plot 1: Ground truth
+    # Row 1: Ground Truth
+    # Plot 1.1: Train data (Ground Truth)
+    train_indices = graph.train_mask.nonzero(as_tuple=True)[0]
+    train_colors = torch.full_like(graph.y, float("nan"))
+    train_colors[train_indices] = graph.y[train_indices].cpu()
+
+    nodes = nx.draw(
+        G,
+        pos,
+        with_labels=with_labels,
+        node_color=train_colors,
+        cmap=plt.get_cmap("coolwarm"),
+        vmin=vmin,
+        vmax=vmax,
+        ax=axs[0, 0],
+        node_size=node_size
+    )
+    axs[0, 0].set_title("Train Data (Ground Truth)", fontsize=font_size)
+
+    # Plot 1.2: Test data (Ground Truth)
+    test_indices = graph.test_mask.nonzero(as_tuple=True)[0]
+    test_colors = torch.full_like(graph.y, float("nan"))
+    test_colors[test_indices] = graph.y[test_indices].cpu()
+
     nx.draw(
         G,
         pos,
         with_labels=with_labels,
-        node_color=graph.y.cpu(),
+        node_color=test_colors,
         cmap=plt.get_cmap("coolwarm"),
         vmin=vmin,
         vmax=vmax,
-        ax=axs[0],
+        ax=axs[0, 1],
+        node_size=node_size
     )
-    axs[0].set_title("Ground Truth")
+    axs[0, 1].set_title("Test Data (Ground Truth)", fontsize=font_size)
 
-    # Add labels (selectivity) to nodes
-    if args.plot_labels:
-        labels = {i: f"{val:.2f}" for i, val in enumerate(graph.y.cpu()) if not torch.isnan(val)}
-        nx.draw_networkx_labels(G, pos, labels=labels, ax=axs[0])
+    # Row 2: Model Predictions
+    # Plot 2.1: Train data (Model Prediction)
+    train_pred_colors = torch.full_like(out, float("nan"))
+    train_pred_colors[train_indices] = out[train_indices].cpu()
 
-    # Plot 2: Model output
-    masked_out = torch.full(out.shape, float("nan"))
-    masked_out[graph.train_mask] = out[graph.train_mask]
     nx.draw(
         G,
         pos,
         with_labels=with_labels,
-        node_color=masked_out.detach().cpu(),
+        node_color=train_pred_colors,
         cmap=plt.get_cmap("coolwarm"),
         vmin=vmin,
         vmax=vmax,
-        ax=axs[1],
+        ax=axs[1, 0],
+        node_size=node_size
     )
-    axs[1].set_title("Model output")
+    axs[1, 0].set_title("Train Data (Model Prediction)", fontsize=font_size)
 
-    # Add labels (selectivity) to nodes
+    # Plot 2.2: Test data (Model Prediction)
+    test_pred_colors = torch.full_like(out, float("nan"))
+    test_pred_colors[test_indices] = out[test_indices].cpu()
+
+    plot = nx.draw(
+        G,
+        pos,
+        with_labels=with_labels,
+        node_color=test_pred_colors,
+        cmap=plt.get_cmap("coolwarm"),
+        vmin=vmin,
+        vmax=vmax,
+        ax=axs[1, 1],
+        node_size=node_size
+    )
+    axs[1, 1].set_title("Test Data (Model Prediction)", fontsize=font_size)
+
+    # Add labels if required
     if args.plot_labels:
-        labels_out = {
-            i: f"{val:.2f}" for i, val in enumerate(masked_out.cpu()) if not torch.isnan(val)
-        }
-        nx.draw_networkx_labels(G, pos, labels=labels_out, ax=axs[1])
+        train_labels = {i: f"{val:.2f}" for i, val in enumerate(graph.y[train_indices].cpu()) if not torch.isnan(val)}
+        test_labels = {i: f"{val:.2f}" for i, val in enumerate(graph.y[test_indices].cpu()) if not torch.isnan(val)}
+        train_pred_labels = {i: f"{val:.2f}" for i, val in enumerate(out[train_indices].cpu()) if not torch.isnan(val)}
+        test_pred_labels = {i: f"{val:.2f}" for i, val in enumerate(out[test_indices].cpu()) if not torch.isnan(val)}
+        
+        nx.draw_networkx_labels(G, pos, labels=train_labels, ax=axs[0, 0], font_size=font_size)
+        nx.draw_networkx_labels(G, pos, labels=test_labels, ax=axs[0, 1], font_size=font_size)
+        nx.draw_networkx_labels(G, pos, labels=train_pred_labels, ax=axs[1, 0], font_size=font_size)
+        nx.draw_networkx_labels(G, pos, labels=test_pred_labels, ax=axs[1, 1], font_size=font_size)
 
-    # Set a shared colorbar
-    plt.colorbar(axs[1].collections[0], ax=axs[1], label="Selectivity")
-    # colorbar = fig.colorbar(
-    #     axs[1].collections[0],
-    #     ax=axs,
-    #     orientation="vertical",
-    #     fraction=0.05,
-    #     pad=0.05,
-    #     location="right",
-    # )
-    # colorbar.set_label("Node Values")
-    # colorbar.set_ticks([vmin, vmax])
+    # Add a shared color bar using the last plot in the array
+    cbar = fig.colorbar(axs[1, 1].collections[0], ax=axs, orientation='horizontal', fraction=0.05, pad=0.1)
+    cbar.set_label(colorbar_label, fontsize=font_size)
+    cbar.ax.tick_params(labelsize=font_size)
 
+    # Adjust layout and save
+    plt.subplots_adjust(left=0.02, right=0.98, top=0.95, bottom=0.15, hspace=0.15, wspace=0.15)
     plt.tight_layout()
-    plt.savefig(f"{save_path}/compare_plot.png", dpi=300)
+    plt.savefig(f"{save_path}/train_test_2x2_compare_plot.png", dpi=300)
     plt.show()
