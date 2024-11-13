@@ -4,7 +4,6 @@
 import argparse
 import copy
 import itertools
-import os
 import time
 
 from scipy import optimize
@@ -49,7 +48,7 @@ def Assign_query_to_interval_idx(query_set, n_column, column_interval, column_in
     - query 1 only include column 2 and include interval index 0.
     - query 2 include column 0 and 1, and include interval index 0 for column 0 and interval index 0 to 4 for column 1.
 
-    Refer to column_interval for the interval index mapping. You can use reveal_query_to_interval_idx(query_to_interval_idx, column_interval) to convert the interval index to the original query format, to better understanding.
+    Refer to column_interval for the interval index mapping. You can use _reveal_query_to_interval_idx(query_to_interval_idx, column_interval) to convert the interval index to the original query format, to better understanding.
     """
     query_to_interval_idx = {i: [[] for _ in range(n_column)] for i in range(len(query_set))}
     for i in range(len(query_set)):
@@ -63,7 +62,7 @@ def Assign_query_to_interval_idx(query_set, n_column, column_interval, column_in
     return query_to_interval_idx
 
 
-def reveal_query_to_interval_idx(query_to_interval_idx, column_interval):
+def _reveal_query_to_interval_idx(query_to_interval_idx, column_interval):
     """This is a helper function to print the query_to_interval_idx in the query format, to check the implement of Assign_query_to_interval_idx."""
     for query_idx, x_idxs in query_to_interval_idx.items():
         print(f"\nquery {query_idx}")
@@ -151,8 +150,8 @@ def generate_table_data(column_interval, int_x, n_column, column_interval_number
 # wine, query 11, (1,3) is good
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
-parser.add_argument("--dataset", type=str, default="test-3", help="Dataset.")
-parser.add_argument("--query-size", type=int, default=10, help="query size")
+parser.add_argument("--dataset", type=str, default="test-2", help="Dataset.")
+parser.add_argument("--query-size", type=int, default=100, help="query size")
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
 
@@ -164,17 +163,11 @@ except:
     args, unknown = parser.parse_known_args()
 
 
+ModelName = "PGM"
 FilePath = (
     f"{args.model}_{args.dataset}_{args.query_size}_({args.min_conditions}_{args.max_conditions})"
 )
-
-
-def make_directory(directory):
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-
-resultsPath = f"results/PGM/{FilePath}"
+resultsPath = f"results/{ModelName}/{FilePath}"
 make_directory(resultsPath)
 
 
@@ -212,7 +205,7 @@ print("\nBegin Building LPALG (PGM) Model ...")
 query_to_interval_idx = Assign_query_to_interval_idx(
     query_set, n_column, column_interval, column_interval_number
 )
-# reveal_query_to_interval_idx(query_to_interval_idx, column_interval)
+# _reveal_query_to_interval_idx(query_to_interval_idx, column_interval)
 query_to_full_interval_idx = Fill_query_to_interval_idx(
     query_to_interval_idx, column_interval_number
 )
@@ -252,10 +245,10 @@ print("Done.\n")
 
 print("Summary of Q-error:")
 print(args)
-df = print_Q_error(Table_Generated, query_set)
+df = calculate_Q_error(Table_Generated, query_set)
 df.to_csv(f"{resultsPath}/Q_error.csv", index=True, header=False)
 print(df)
-print(f"\n Original table shape : {table_size}")
+print(f"\nOriginal  table shape : {table_size}")
 print(f"Generated table shape : {Table_Generated.shape}\n")
 
 

@@ -9,7 +9,6 @@
 # 尝试 Graph 与 AR 的条件概率 CDF 模型结合，一列一列处理，避免笛卡尔积过大
 # 尝试“用一部份点的集合”替换掉 intervalization, 变成连续的版本，i.e.使用比 internalization 更少的点来拟合 margin CDF
 import argparse
-import os
 
 from dataset import *
 from models import *
@@ -50,21 +49,14 @@ try:
 except:
     # args = parser.parse_args([])
     args, unknown = parser.parse_known_args()
-
 args.channels = [int(x) for x in args.channels.split(",")]
 
 
+ModelName = "2D_GNN"
 FilePath = (
     f"{args.model}_{args.dataset}_{args.query_size}_({args.min_conditions}_{args.max_conditions})"
 )
-
-
-def make_directory(directory):
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-
-resultsPath = f"results/{FilePath}"
+resultsPath = f"results/{ModelName}/{FilePath}"
 make_directory(resultsPath)
 
 
@@ -137,7 +129,7 @@ Visualize_compare_Graph_2D(
 
 # print("Summary of Q-error:")
 # print(args)
-# df = print_Q_error(Table_Generated, query_set)
+# df = calculate_Q_error(Table_Generated, query_set)
 # df.to_csv(f"{resultsPath}/Q_error.csv", index=True, header=False)
 # print(df)
 # print(f"\n Original table shape : {table_size}")
