@@ -105,7 +105,7 @@ def generate_table(solver, db, num_rows, num_columns):
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
 parser.add_argument("--dataset", type=str, default="test-2", help="Dataset.")
-parser.add_argument("--query-size", type=int, default=10, help="query size")
+parser.add_argument("--query-size", type=int, default=200, help="query size")
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
 
@@ -165,5 +165,7 @@ print(f"\n Original table shape : {table_size}")
 print(f"Generated table shape : {Table_Generated.shape}\n")
 
 
-plt.scatter(table[:, 0], table[:, 1])
-plt.scatter(Table_Generated[:, 0], Table_Generated[:, 1])
+plt.scatter(table[:, 0], table[:, 1], label="Original Table")
+plt.scatter(Table_Generated[:, 0], Table_Generated[:, 1], label="Generated Table")
+plt.savefig(f"{resultsPath}/scatter_plot.png", dpi=300)
+plt.show()
