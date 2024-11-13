@@ -1,3 +1,4 @@
+import os
 import random as rn
 import warnings
 
@@ -35,6 +36,11 @@ OPS = {
     "<=": np.less_equal,
     "=": np.equal,
 }
+
+
+def make_directory(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 
 def generate_random_query(table, args, rng):
@@ -129,7 +135,7 @@ def calculate_query_cardinality(data, ops, vals):
     return bools.sum()
 
 
-def calculate_Q_error(dataNew, query_set):
+def apply_Q_error(dataNew, query_set):
     Q_error = []
     for query in tqdm(query_set):
         idxs, ops, vals, card_true = query
@@ -145,8 +151,8 @@ def calculate_Q_error(dataNew, query_set):
     return Q_error
 
 
-def print_Q_error(Table_Generated, query_set):
-    Q_error = calculate_Q_error(Table_Generated, query_set)
+def calculate_Q_error(Table_Generated, query_set):
+    Q_error = apply_Q_error(Table_Generated, query_set)
     statistics = {
         "min": np.min(Q_error),
         "10": np.percentile(Q_error, 10),
