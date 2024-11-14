@@ -94,28 +94,18 @@ def Assign_query_to_interval_idx(query_set, n_column, column_interval, column_in
             )
     return query_to_interval_idx
 
-def define_query_error_constraints(query_set, query_to_full_interval_idx, column_interval_number):
-    """
-    the sum of selected variables X equals the cardinality of each query.
+def define_solver(query_set, query_to_full_interval_idx, column_interval_number, penalty_weight=10):
+    solver = Optimize()
     
-    Args:
-    - query_set: List of queries, where each query is a list in the form [idxs, ops, vals, cardinality].
-    - query_to_full_interval_idx: Dictionary with query indices as keys and lists of interval indices for each column as values.
-    - column_interval_number: List where each element is the number of unique intervals for each column.
-    
-    Returns:
-    - constraints: List of Z3 constraints.
-    """
     # Initialize an array of Z3 variables for each possible interval index
     total_x = np.product(column_interval_number)
 
-    constraints = []
     X = [Int(f"x_{i}") for i in range(total_x)]
-    print(X)
-    for x in X:
-        constraints.append(0 <= x)
-        constraints.append(x <= n_row)
+    
+    bounds_constraints = [And(xi >= 0, xi <= n_row) for xi in X]
+    solver.add(bounds_constraints)
         
+    query_constraints = []
     for k, v in query_to_full_interval_idx.items():
         card_true = query_set[k][-1]  # Get the true cardinality for this query
         
@@ -124,17 +114,20 @@ def define_query_error_constraints(query_set, query_to_full_interval_idx, column
         x_index = np.ravel_multi_index(x_ind.T, column_interval_number)
         
         # Define the constraint that the sum should equal the cardinality
-        constraint = (Sum([X[i] for i in x_index]) == card_true)
-        constraints.append(constraint)
+        query_constraint = (Sum([X[i] for i in x_index]) == card_true)
+        query_constraints.append(query_constraint)
+    solver.add(query_constraints)
     
-    # constraint = (Sum([X[i] for i in range(total_x)]) == num_rows)
-    # constraints.append(constraint)
+    # Add the total constraint as a soft constraint with a penalty weight
+    total_constraint_error = Abs(Sum(X) - n_row)
+    solver.add_soft(total_constraint_error == 0, weight=penalty_weight)  # Soften only the total constraint
     
-    return constraints
+    return X, solver
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
-parser.add_argument("--dataset", type=str, default="test-2", help="Dataset.")
+parser.add_argument("--dataset", type=str, default="census", help="Dataset.")
 parser.add_argument("--query-size", type=int, default=10, help="query size")
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
@@ -171,14 +164,21 @@ print("Done.\n")
 
 
 print("Begin Intervalization ...")
-column_intervals = column_intervalization(query_set, table_size, args)
-column_interval_number = count_unique_vals_num(column_intervals)
+column_interval = column_intervalization(query_set, table_size, args)
+
+for k, v in column_interval.items():
+    if not v:
+        column_interval[k] = [0]
+
+column_interval_number = count_unique_vals_num(column_interval)
+total_x = np.product(column_interval_number)
 print(f"{column_interval_number=}")
 print("Done.\n")
 
+
 print("\nBegin Building LPALG (PGM) Model ...")
 query_to_interval_idx = Assign_query_to_interval_idx(
-    query_set, n_column, column_intervals, column_interval_number
+    query_set, n_column, column_interval, column_interval_number
 )
 print(f"query_to_interval_idx={query_to_interval_idx}")
 # _reveal_query_to_interval_idx(query_to_interval_idx, column_interval)
@@ -187,12 +187,9 @@ query_to_full_interval_idx = Fill_query_to_interval_idx(
 )
 print(f"query_to_full_interval_idx={query_to_full_interval_idx}")
 
-solver = Solver()
-query_error_list = define_query_error_constraints(
+X, solver = define_solver(
     query_set, query_to_full_interval_idx, column_interval_number
 )
-solver.add(query_error_list)
-
 
 tic = time.time()
 if solver.check() == sat:
@@ -203,7 +200,7 @@ if solver.check() == sat:
     print(model)
     int_x = [model[Int(f"x_{i}")].as_long() if model[Int(f"x_{i}")] is not None else 0 for i in range(len(model))]
     print(f"\n Integer X: ( length = {len(int_x)} )\n", int_x)
-    Table_Generated = generate_table_data(column_intervals, int_x, n_column, column_interval_number)
+    Table_Generated = generate_table_data(column_interval, int_x, n_column, column_interval_number)
     print("Done.\n")
 else:
     print("No solution founded.")
