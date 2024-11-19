@@ -38,8 +38,18 @@ def _sort_by_column_unique_number(df, ascending=False):
     return modified_data, original_table_columns, sorted_table_columns
 
 
+def _load_data(file_path):
+    if file_path[:4] == "test":
+        df = pd.read_csv(f"datasets/{file_path}.csv", header=None)
+    elif file_path == "census":
+        columns_to_read = [0, 2]
+        df = pd.read_csv(f"datasets/{file_path}.csv", header=None, usecols=columns_to_read)
+    return df
+
+
 def load_and_process_dataset(file_path, resultsPath):
-    df = pd.read_csv(f"datasets/{file_path}.csv", header=None)
+    # df = pd.read_csv(f"datasets/{file_path}.csv", header=None)
+    df = _load_data(file_path)
     df.to_csv(f"{resultsPath}/original_table.csv", index=False, header=False)
     df_int, max_decimal_places = _convert_datatype_to_int(df)
     modified_data, original_table_columns, sorted_table_columns = _sort_by_column_unique_number(
