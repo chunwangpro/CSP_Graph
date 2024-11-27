@@ -40,10 +40,21 @@ def _sort_by_column_unique_number(df, ascending=False):
 
 def _load_data(file_path):
     if file_path[:4] == "test":
-        df = pd.read_csv(f"datasets/{file_path}.csv", header=None)
-    elif file_path == "census":
+        return pd.read_csv(f"datasets/{file_path}.csv", header=None)
+
+    if file_path == "census-2":
+        df_name = "census"
         columns_to_read = [0, 2]
-        df = pd.read_csv(f"datasets/{file_path}.csv", header=None, usecols=columns_to_read)
+    elif file_path == "census-3":
+        df_name = "census"
+        columns_to_read = [0, 2, 4]
+    elif file_path == "wine-2":
+        df_name = "wine"
+        columns_to_read = [0, 1]
+    elif file_path == "wine-3":
+        df_name = "wine"
+        columns_to_read = [0, 1, 2]
+    df = pd.read_csv(f"datasets/{df_name}.csv", header=None, usecols=columns_to_read)
     return df
 
 
