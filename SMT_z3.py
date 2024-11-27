@@ -1,6 +1,6 @@
 import argparse
-import itertools
 import time
+import itertools
 
 from z3 import *
 
@@ -8,10 +8,9 @@ from dataset import *
 from models import *
 from preprocessing import *
 from utils import *
-
+from plot_util import *
 
 def make_unique(query_set):
-    """Make the query set unique, remove duplicated queries."""
     seen = set()
     unique_query_set = []
     for row in query_set:
@@ -20,6 +19,21 @@ def make_unique(query_set):
             seen.add(hashable_row)
             unique_query_set.append(row)
     return unique_query_set
+
+
+def generate_table_data(column_interval, int_x, n_column, column_interval_number):
+    """Generate table data based on z3 model solution."""
+    Table_Generated = np.empty((0, n_column), dtype=np.float32)
+    column_to_x = [list(range(i)) for i in column_interval_number]
+    all_x = np.array([x for x in itertools.product(*column_to_x)], dtype=np.uint16)
+    # all_x.shape = (total_x, n_column), total_x == len(int_x)
+    for i in range(len(int_x)):
+        if int_x[i] < 1:
+            continue
+        vals = [column_interval[j][all_x[i][j]] for j in range(n_column)]
+        subtable = np.tile(vals, (int_x[i], 1))
+        Table_Generated = np.concatenate((Table_Generated, subtable), axis=0)
+    return Table_Generated
 
 
 def Fill_query_to_interval_idx(query_to_interval_idx, column_interval_number):
@@ -81,55 +95,67 @@ def Assign_query_to_interval_idx(query_set, n_column, column_interval, column_in
             )
     return query_to_interval_idx
 
-
-def define_solver(query_set, query_to_full_interval_idx, column_interval_number, penalty_weight=10):
+def define_solver(query_set, query_to_full_interval_idx, column_interval_number, penalty_weight=1, query_penalty_weight=1):
     solver = Optimize()
+    
     # Initialize an array of Z3 variables for each possible interval index
     total_x = np.product(column_interval_number)
     X = [Int(f"x_{i}") for i in range(total_x)]
+    
+    # Add bounds constraints
     bounds_constraints = [And(xi >= 0, xi <= n_row) for xi in X]
     solver.add(bounds_constraints)
-
-    query_constraints = []
+        
+    # Add soft constraints for each query
     for k, v in query_to_full_interval_idx.items():
         card_true = query_set[k][-1]  # Get the true cardinality for this query
+        
         # Flatten the multi-column intervals into a list of indices for the Z3 array
-        x_ind = np.array([x for x in itertools.product(*v)])  # , dtype=np.uint16)
+        x_ind = np.array([x for x in itertools.product(*v)])
         x_index = np.ravel_multi_index(x_ind.T, column_interval_number)
-        # Define the constraint that the sum should equal the cardinality
-        query_constraint = Sum([X[i] for i in x_index]) == card_true
-        query_constraints.append(query_constraint)
-    solver.add(query_constraints)
-
+        
+        # Define the constraint that the sum should approximately equal the cardinality
+        query_cardinality_error = Abs(Sum([X[i] for i in x_index]) - card_true)
+        solver.add_soft(query_cardinality_error == 0, weight=query_penalty_weight)  # Soften the query constraint
+    
     # Add the total constraint as a soft constraint with a penalty weight
     total_constraint_error = Abs(Sum(X) - n_row)
-    # Soften only the total constraint
-    solver.add_soft(total_constraint_error == 0, weight=penalty_weight)
+    solver.add_soft(total_constraint_error == 0, weight=penalty_weight)  # Soften the total constraint
+    
     return X, solver
 
 
-def generate_table_data(column_interval, int_x, n_column, column_interval_number):
-    """Generate table data based on z3 model solution."""
-    Table_Generated = np.empty((0, n_column), dtype=np.float32)
-    column_to_x = [list(range(i)) for i in column_interval_number]
-    all_x = np.array([x for x in itertools.product(*column_to_x)], dtype=np.uint16)
-    # all_x.shape = (total_x, n_column), total_x == len(int_x)
-    for i in range(len(int_x)):
-        if int_x[i] < 1:
-            continue
-        vals = [column_interval[j][all_x[i][j]] for j in range(n_column)]
-        subtable = np.tile(vals, (int_x[i], 1))
-        Table_Generated = np.concatenate((Table_Generated, subtable), axis=0)
-    return Table_Generated
+def calculate_Q_error_smt(Table_Generated, table):
+    gen_rows = Table_Generated.shape[0]
+    true_rows = table.shape[0]
+    return max(gen_rows, true_rows) / min(gen_rows, true_rows)
+
+
+def export_to_csv(table, filename):
+    try:
+        np.savetxt(filename, table, delimiter=",", fmt="%s")
+        print(f"Table successfully saved to {filename}")
+    except Exception as e:
+        print(f"Error saving array to CSV: {e}")
+
+def count_matching_rows(arr1, arr2):
+    # Convert both arrays to the same type (integer) for comparison
+    arr1_int = arr1.astype(int)
+    arr2_int = arr2.astype(int)
+    
+    # Use a set for efficient row matching
+    arr2_set = {tuple(row) for row in arr2_int}
+    match_count = sum(1 for row in arr1_int if tuple(row) in arr2_set)
+    
+    return match_count
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
 parser.add_argument("--dataset", type=str, default="census-2", help="Dataset.")
-parser.add_argument("--query-size", type=int, default=10, help="query size")
+parser.add_argument("--query-size", type=int, default=100, help="query size")
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
-
 
 try:
     args = parser.parse_args()
@@ -156,7 +182,6 @@ print(f"{args.dataset}.csv")
 print(f"Table shape: {table_size}")
 print("Done.\n")
 
-
 print("Begin Generating Queries ...")
 rng = np.random.RandomState(42)
 query_set = [generate_random_query(table, args, rng) for _ in tqdm(range(args.query_size))]
@@ -180,29 +205,26 @@ print("\nBegin Building LPALG (PGM) Model ...")
 query_to_interval_idx = Assign_query_to_interval_idx(
     query_set, n_column, column_interval, column_interval_number
 )
-print(f"query_to_interval_idx={query_to_interval_idx}")
+# print(f"query_to_interval_idx={query_to_interval_idx}")
 # _reveal_query_to_interval_idx(query_to_interval_idx, column_interval)
 query_to_full_interval_idx = Fill_query_to_interval_idx(
     query_to_interval_idx, column_interval_number
 )
-print(f"query_to_full_interval_idx={query_to_full_interval_idx}")
-
-
-X, solver = define_solver(query_set, query_to_full_interval_idx, column_interval_number)
-
+# print(f"query_to_full_interval_idx={query_to_full_interval_idx}")
 
 tic = time.time()
+X, solver = define_solver(
+    query_set, query_to_full_interval_idx, column_interval_number
+)
+
 if solver.check() == sat:
     print("Satisfiable solution founded")
     toc = time.time()
     print("\nBegin Generating Data ...")
     model = solver.model()
-    print(model)
-    int_x = [
-        model[Int(f"x_{i}")].as_long() if model[Int(f"x_{i}")] is not None else 0
-        for i in range(len(model))
-    ]
-    print(f"\n Integer X: ( length = {len(int_x)} )\n", int_x)
+    # print(model)
+    int_x = [model[Int(f"x_{i}")].as_long() if model[Int(f"x_{i}")] is not None else 0 for i in range(len(model))]
+    print(f"\n Integer X: ( length = {len(int_x)} )\n")
     Table_Generated = generate_table_data(column_interval, int_x, n_column, column_interval_number)
     print("Done.\n")
 else:
@@ -212,18 +234,29 @@ time_count(tic, toc)
 
 print("\nSummary of Q-error:")
 print(args)
+Table_Generated = Table_Generated.astype(int)
+q_error = calculate_Q_error_smt(Table_Generated, table)
+print(f"table size-based {q_error=}")
+print(f"\n Original table shape : {table_size}")
+print(f"Generated table shape : {Table_Generated.shape}\n")
+print(args)
 df = calculate_Q_error(Table_Generated, query_set)
 df.to_csv(f"{resultsPath}/Q_error.csv", index=True, header=False)
 print(df)
-print(f"\n Original table shape : {table_size}")
+print(f"\nOriginal  table shape : {table_size}")
 print(f"Generated table shape : {Table_Generated.shape}\n")
+print(f"# of matched rows : {count_matching_rows(table, Table_Generated)}\n")
 
+# output_dir = 'results/'
+# plt.figure()
+# plt.scatter(table[:, 0], table[:, 1], label='Table')
+# plt.scatter(Table_Generated[:, 0], Table_Generated[:, 1], label='Table_Generated')
+# plt.legend()
+# plt.title("Scatter Plot of Table and Table_Generated")
+# plt.savefig(f'{output_dir}/scatter_plot.png')
+# plt.close()
 
-output_dir = "results/"
-plt.figure()
-plt.scatter(table[:, 0], table[:, 1], label="Table")
-plt.scatter(Table_Generated[:, 0], Table_Generated[:, 1], label="Table_Generated")
-plt.legend()
-plt.title("Scatter Plot of Table and Table_Generated")
-plt.savefig(f"{output_dir}/scatter_plot.png")
-plt.close()
+plot_2d(table, Table_Generated)
+# export_to_csv(table, "results/ground-truth.csv")
+# export_to_csv(Table_Generated, "results/generated.csv")
+# plot_3d(table, Table_Generated)
