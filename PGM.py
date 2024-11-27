@@ -150,8 +150,8 @@ def generate_table_data(column_interval, int_x, n_column, column_interval_number
 # wine, query 11, (1,3) is good
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
-parser.add_argument("--dataset", type=str, default="test-2", help="Dataset.")
-parser.add_argument("--query-size", type=int, default=100, help="query size")
+parser.add_argument("--dataset", type=str, default="census", help="Dataset.")
+parser.add_argument("--query-size", type=int, default=50, help="query size")
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
 
