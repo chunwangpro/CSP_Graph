@@ -7,6 +7,26 @@
 
 import pandas as pd
 
+
+def _load_data(file_path):
+    if file_path[:4] == "test":
+        return pd.read_csv(f"datasets/{file_path}.csv", header=None)
+
+    if file_path == "census-2":
+        df_name = "census"
+        columns_to_read = [0, 2]
+    elif file_path == "census-3":
+        df_name = "census"
+        columns_to_read = [0, 2, 4]
+    elif file_path == "wine-2":
+        df_name = "wine"
+        columns_to_read = [0, 1]
+    elif file_path == "wine-3":
+        df_name = "wine"
+        columns_to_read = [0, 1, 2]
+    return pd.read_csv(f"datasets/{df_name}.csv", header=None, usecols=columns_to_read)
+
+
 # def _convert_datatype_to_int(df):
 #     def find_decimal_places(x):
 #         if isinstance(x, float):
@@ -36,26 +56,6 @@ def _sort_by_column_unique_number(df, ascending=False):
     sorted_table_columns = df.nunique().sort_values(ascending=ascending).index.tolist()
     modified_data = df[sorted_table_columns].copy().to_numpy().reshape(len(df), -1)
     return modified_data, original_table_columns, sorted_table_columns
-
-
-def _load_data(file_path):
-    if file_path[:4] == "test":
-        return pd.read_csv(f"datasets/{file_path}.csv", header=None)
-
-    if file_path == "census-2":
-        df_name = "census"
-        columns_to_read = [0, 2]
-    elif file_path == "census-3":
-        df_name = "census"
-        columns_to_read = [0, 2, 4]
-    elif file_path == "wine-2":
-        df_name = "wine"
-        columns_to_read = [0, 1]
-    elif file_path == "wine-3":
-        df_name = "wine"
-        columns_to_read = [0, 1, 2]
-    df = pd.read_csv(f"datasets/{df_name}.csv", header=None, usecols=columns_to_read)
-    return df
 
 
 def load_and_process_dataset(file_path, resultsPath):

@@ -4,7 +4,8 @@ import warnings
 
 import numpy as np
 import pandas as pd
-import tensorflow as tf
+
+# import tensorflow as tf
 import torch
 from tqdm import tqdm
 
@@ -17,7 +18,7 @@ np.random.seed(seed_value)
 torch.manual_seed(seed_value)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(seed_value)
-tf.random.set_seed(seed_value)
+# tf.random.set_seed(seed_value)
 
 # set device for PyTorch
 device = torch.device("cpu")

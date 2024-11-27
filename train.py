@@ -1,12 +1,11 @@
 import argparse
 import os
+import time
 
 from dataset import *
 from models import *
 from preprocessing import *
 from utils import *
-
-import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
@@ -89,7 +88,14 @@ print("Done.\n")
 
 
 print("Begin Building Graph and Model ...")
-graph_train = setup_graph(args, query_set_train, column_intervals_train, column_interval_number_train, table_size, test=False)
+graph_train = setup_graph(
+    args,
+    query_set_train,
+    column_intervals_train,
+    column_interval_number_train,
+    table_size,
+    test=False,
+)
 print(f"shape of graph.x: {graph_train.x.shape}")
 print(f"shape of graph.pos: {graph_train.pos.shape}")
 print(f"shape of train mask: {graph_train.train_mask.shape}")
@@ -135,6 +141,7 @@ if args.plot:
         with_labels=False,
     )
 
+
 def generate_table_by_row(graph, out):
     ls_1 = []
     ls_2 = []
@@ -148,30 +155,34 @@ def generate_table_by_row(graph, out):
     cdf = np.zeros((max_row + 1, max_col + 1))
     cdf[rows, cols] = card
     print(f"cdf: {cdf}")
-    
+
     arr_1 = np.zeros((1, cdf.shape[1]))
-    arr_2 = np.zeros((cdf.shape[0]+1, 1))
+    arr_2 = np.zeros((cdf.shape[0] + 1, 1))
     cdf_pad = np.concatenate([arr_2, np.concatenate([arr_1, cdf], axis=0)], axis=1)
     pdf = cdf_pad[1:, 1:] - cdf_pad[1:, :-1] - cdf_pad[:-1, 1:] + cdf_pad[:-1, :-1]
     pdf[pdf < 0] = 0
     pdf = pdf.astype(int)
     print(f"pdf: {pdf}")
     print(f"sum of pdf: {np.sum(pdf)}")
-    
+
     for i in range(graph.pos.shape[0]):
-        idx_1, idx_2 = graph.pos.detach().cpu().numpy()[i, 0].astype(int), graph.pos.detach().cpu().numpy()[i, 1].astype(int)
+        idx_1, idx_2 = graph.pos.detach().cpu().numpy()[i, 0].astype(
+            int
+        ), graph.pos.detach().cpu().numpy()[i, 1].astype(int)
         ls_1.extend([column_intervals_train[0][int(graph.pos[i, 0])]] * pdf[idx_1, idx_2])
         ls_2.extend([column_intervals_train[1][int(graph.pos[i, 1])]] * pdf[idx_1, idx_2])
-    
-    return np.concatenate([np.array(ls_1).reshape(-1,1), np.array(ls_2).reshape(-1,1)], axis=1)
+
+    return np.concatenate([np.array(ls_1).reshape(-1, 1), np.array(ls_2).reshape(-1, 1)], axis=1)
+
 
 Table_Generated = generate_table_by_row(graph_train, out_train)
 
 print("Summary of Q-error:")
 print(args)
-df_train = print_Q_error(Table_Generated, query_set_train)
+
+df_train = calculate_Q_error(Table_Generated, query_set_train)
 df_train.to_csv(f"{resultsPath}/Q_error_train.csv", index=True, header=False)
-df_test = print_Q_error(Table_Generated, query_set_test)
+df_test = calculate_Q_error(Table_Generated, query_set_test)
 df_test.to_csv(f"{resultsPath}/Q_error_test.csv", index=True, header=False)
 print(df_train)
 print(df_test)

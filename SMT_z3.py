@@ -1,6 +1,6 @@
 import argparse
-import time
 import itertools
+import time
 
 from z3 import *
 
@@ -9,7 +9,9 @@ from models import *
 from preprocessing import *
 from utils import *
 
+
 def make_unique(query_set):
+    """Make the query set unique, remove duplicated queries."""
     seen = set()
     unique_query_set = []
     for row in query_set:
@@ -18,22 +20,6 @@ def make_unique(query_set):
             seen.add(hashable_row)
             unique_query_set.append(row)
     return unique_query_set
-
-
-
-def generate_table_data(column_interval, int_x, n_column, column_interval_number):
-    """Generate table data based on z3 model solution."""
-    Table_Generated = np.empty((0, n_column), dtype=np.float32)
-    column_to_x = [list(range(i)) for i in column_interval_number]
-    all_x = np.array([x for x in itertools.product(*column_to_x)], dtype=np.uint16)
-    # all_x.shape = (total_x, n_column), total_x == len(int_x)
-    for i in range(len(int_x)):
-        if int_x[i] < 1:
-            continue
-        vals = [column_interval[j][all_x[i][j]] for j in range(n_column)]
-        subtable = np.tile(vals, (int_x[i], 1))
-        Table_Generated = np.concatenate((Table_Generated, subtable), axis=0)
-    return Table_Generated
 
 
 def Fill_query_to_interval_idx(query_to_interval_idx, column_interval_number):
@@ -98,44 +84,52 @@ def Assign_query_to_interval_idx(query_set, n_column, column_interval, column_in
 
 def define_solver(query_set, query_to_full_interval_idx, column_interval_number, penalty_weight=10):
     solver = Optimize()
-    
     # Initialize an array of Z3 variables for each possible interval index
     total_x = np.product(column_interval_number)
-
     X = [Int(f"x_{i}") for i in range(total_x)]
-    
     bounds_constraints = [And(xi >= 0, xi <= n_row) for xi in X]
     solver.add(bounds_constraints)
-        
-    query_constraints = []
 
+    query_constraints = []
     for k, v in query_to_full_interval_idx.items():
         card_true = query_set[k][-1]  # Get the true cardinality for this query
-        
         # Flatten the multi-column intervals into a list of indices for the Z3 array
         x_ind = np.array([x for x in itertools.product(*v)])  # , dtype=np.uint16)
         x_index = np.ravel_multi_index(x_ind.T, column_interval_number)
-        
         # Define the constraint that the sum should equal the cardinality
-
-        query_constraint = (Sum([X[i] for i in x_index]) == card_true)
+        query_constraint = Sum([X[i] for i in x_index]) == card_true
         query_constraints.append(query_constraint)
     solver.add(query_constraints)
-    
+
     # Add the total constraint as a soft constraint with a penalty weight
     total_constraint_error = Abs(Sum(X) - n_row)
-    solver.add_soft(total_constraint_error == 0, weight=penalty_weight)  # Soften only the total constraint
-    
+    # Soften only the total constraint
+    solver.add_soft(total_constraint_error == 0, weight=penalty_weight)
     return X, solver
+
+
+def generate_table_data(column_interval, int_x, n_column, column_interval_number):
+    """Generate table data based on z3 model solution."""
+    Table_Generated = np.empty((0, n_column), dtype=np.float32)
+    column_to_x = [list(range(i)) for i in column_interval_number]
+    all_x = np.array([x for x in itertools.product(*column_to_x)], dtype=np.uint16)
+    # all_x.shape = (total_x, n_column), total_x == len(int_x)
+    for i in range(len(int_x)):
+        if int_x[i] < 1:
+            continue
+        vals = [column_interval[j][all_x[i][j]] for j in range(n_column)]
+        subtable = np.tile(vals, (int_x[i], 1))
+        Table_Generated = np.concatenate((Table_Generated, subtable), axis=0)
+    return Table_Generated
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
-parser.add_argument("--dataset", type=str, default="census", help="Dataset.")
+parser.add_argument("--dataset", type=str, default="census-2", help="Dataset.")
 parser.add_argument("--query-size", type=int, default=10, help="query size")
-
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
+
 
 try:
     args = parser.parse_args()
@@ -156,7 +150,6 @@ print("\nBegin Loading Data ...")
 table, original_table_columns, sorted_table_columns, max_decimal_places = load_and_process_dataset(
     args.dataset, resultsPath
 )
-
 table_size = table.shape
 n_row, n_column = table_size
 print(f"{args.dataset}.csv")
@@ -195,9 +188,7 @@ query_to_full_interval_idx = Fill_query_to_interval_idx(
 print(f"query_to_full_interval_idx={query_to_full_interval_idx}")
 
 
-X, solver = define_solver(
-    query_set, query_to_full_interval_idx, column_interval_number
-)
+X, solver = define_solver(query_set, query_to_full_interval_idx, column_interval_number)
 
 
 tic = time.time()
@@ -207,7 +198,10 @@ if solver.check() == sat:
     print("\nBegin Generating Data ...")
     model = solver.model()
     print(model)
-    int_x = [model[Int(f"x_{i}")].as_long() if model[Int(f"x_{i}")] is not None else 0 for i in range(len(model))]
+    int_x = [
+        model[Int(f"x_{i}")].as_long() if model[Int(f"x_{i}")] is not None else 0
+        for i in range(len(model))
+    ]
     print(f"\n Integer X: ( length = {len(int_x)} )\n", int_x)
     Table_Generated = generate_table_data(column_interval, int_x, n_column, column_interval_number)
     print("Done.\n")
@@ -225,11 +219,11 @@ print(f"\n Original table shape : {table_size}")
 print(f"Generated table shape : {Table_Generated.shape}\n")
 
 
-output_dir = 'results/'
+output_dir = "results/"
 plt.figure()
-plt.scatter(table[:, 0], table[:, 1], label='Table')
-plt.scatter(Table_Generated[:, 0], Table_Generated[:, 1], label='Table_Generated')
+plt.scatter(table[:, 0], table[:, 1], label="Table")
+plt.scatter(Table_Generated[:, 0], Table_Generated[:, 1], label="Table_Generated")
 plt.legend()
 plt.title("Scatter Plot of Table and Table_Generated")
-plt.savefig(f'{output_dir}/scatter_plot.png')
+plt.savefig(f"{output_dir}/scatter_plot.png")
 plt.close()
