@@ -26,7 +26,7 @@ if torch.cuda.is_available():
 # elif torch.backends.mps.is_built() and torch.backends.mps.is_available():
 #     device = torch.device("mps")
 #     os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-print("PyTorch is using device:", device)
+print("\nPyTorch is using device:", device)
 
 # Operators dictionary
 OPS = {
@@ -38,6 +38,11 @@ OPS = {
 }
 
 
+def make_directory(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+
 def generate_random_query(table, args, rng):
     """Generate a random query."""
     conditions = rng.randint(args.min_conditions, args.max_conditions + 1)
@@ -45,7 +50,6 @@ def generate_random_query(table, args, rng):
         ops = rng.choice(["<="], replace=True, size=conditions)
     elif args.model == "2-input":
         ops = rng.choice(["<", "<=", ">", ">=", "="], replace=True, size=conditions)
-        # ops = rng.choice(["="], replace=True, size=conditions)
     idxs = rng.choice(table.shape[1], replace=False, size=conditions)
     idxs = np.sort(idxs)
     cols = table[:, idxs]
@@ -60,8 +64,21 @@ def column_unique_interval(table):
     return column_interval
 
 
-def column_intervalization(query_set, table_size):
-    # get unique intervals for each column, the intervals are less than the unique values
+def column_intervalization(query_set, table_size, args):
+    """
+    Get unique intervals (included in queries) for each column, the number of intervals are less than the number of unique values.
+
+    Returns:
+    column_interval: dict, where the key is the column index and the value is a list of unique intervals.
+
+    column_interval = {
+        0: [99360],
+        1: [110, 280, 660, 775],
+        2: [960, 1390, 1450, 1700],
+        3: [43],
+        ...,
+    }
+    """
     column_interval = {i: set() for i in range(table_size[1])}
     for query in query_set:
         idxs, _, vals, _ = query
@@ -70,6 +87,9 @@ def column_intervalization(query_set, table_size):
     # Apply the column_interval to <, <=, >, >=, =
     for k, v in column_interval.items():
         interval_list = sorted(list(v))
+        if args.model == "1-input":
+            column_interval[k] = interval_list
+            continue
         add_small = 2 * interval_list[0] - interval_list[1]
         add_big_1 = 2 * interval_list[-1] - interval_list[-2]
         add_big_2 = 3 * interval_list[-1] - 2 * interval_list[-2]
@@ -78,7 +98,7 @@ def column_intervalization(query_set, table_size):
 
 
 def count_unique_vals_num(column_interval):
-    # count unique interval number for each column
+    """count unique interval number for each column."""
     return [len(v) for v in column_interval.values()]
 
 
@@ -115,26 +135,11 @@ def calculate_query_cardinality(data, ops, vals):
     return bools.sum()
 
 
-def calculate_Q_error(dataNew, query_set, table_size=None):
-    print("\nBegin Calculating Q-error ...")
+def apply_Q_error(dataNew, query_set):
     Q_error = []
     for query in tqdm(query_set):
         idxs, ops, vals, card_true = query
         card_pred = calculate_query_cardinality(dataNew[:, idxs], ops, vals)
-
-        # # test: use selectivity, instead of cardinality, to calculate Q-error
-        # print(f"True: {card_true}, Pred: {card_pred}")
-        # card_true /= table_size[0]
-        # card_pred /= dataNew.shape[0]
-
-        # if card_pred == 0:
-        #     card_pred = 1
-        # if card_true == 0:
-        #     card_true = 1
-
-        # Q_error.append(max(card_pred / card_true, card_true / card_pred))
-        # # end test
-
         if card_pred == 0 and card_true == 0:
             Q_error.append(1)
         elif card_pred == 0:
@@ -143,13 +148,11 @@ def calculate_Q_error(dataNew, query_set, table_size=None):
             Q_error.append(card_pred)
         else:
             Q_error.append(max(card_pred / card_true, card_true / card_pred))
-    print("Done.\n")
     return Q_error
 
 
-def print_Q_error(Q_error, args, resultsPath):
-    print("Summary of Q-error:")
-    print(args)
+def calculate_Q_error(Table_Generated, query_set):
+    Q_error = apply_Q_error(Table_Generated, query_set)
     statistics = {
         "min": np.min(Q_error),
         "10": np.percentile(Q_error, 10),
@@ -168,5 +171,11 @@ def print_Q_error(Q_error, args, resultsPath):
     }
     df = pd.DataFrame.from_dict(statistics, orient="index", columns=["Q-error"])
     df.index.name = None
-    df.to_csv(f"{resultsPath}/Q_error.csv", index=True, header=False)
-    print(df)
+    return df
+
+
+def time_count(tic, toc):
+    total_time = toc - tic
+    m, s = divmod(total_time, 60)
+    h, m = divmod(m, 60)
+    print(f"Time passed:  {h:0>2.0f}:{m:0>2.0f}:{s:0>2.0f}")

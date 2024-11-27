@@ -28,7 +28,15 @@ def get_strides(column_interval_number):
 
 def torch_unravel_index(indices, column_interval_number, strides):
     """
-    Same as np.unravel_index. Pytorch can leverage GPU for parallel computing, which is more efficient than numpy.
+    Samilar as np.unravel_index, convert 1D indices to multi-dim coordinates, but we need to provide column_interval_number and strides (can be calculated by get_strides).
+    Pytorch can leverage GPU for parallel computing, more efficient than numpy, and support vecterized operations.
+
+    example:
+    indices = torch.tensor([0, 6])
+    column_interval_number = [5, 5]
+    strides = get_strides(column_interval_number)
+
+    torch_unravel_index(indices, column_interval_number, strides) --> torch.tensor([[0, 0], [1,1]])
     """
     return torch.stack(
         [
@@ -41,7 +49,15 @@ def torch_unravel_index(indices, column_interval_number, strides):
 
 def torch_ravel_multi_index(coords, strides):
     """
-    Same as np.ravel_multi_index. Pytorch can leverage GPU for parallel computing, which is more efficient than numpy.
+    Similar as np.ravel_multi_index, convert multi-dim coordinates to 1D indices, but we need to provide strides (can be calculated by get_strides).
+    Pytorch can leverage GPU for parallel computing, more efficient than numpy, and support vecterized operations.
+
+    example:
+    coords = torch.tensor([[0, 0], [1, 1]])
+    column_interval_number = [5, 5]
+    strides = get_strides(column_interval_number)
+
+    torch_ravel_multi_index(coords, strides) --> tensor([0, 6])
     """
     return torch.sum(coords * strides, dim=1, dtype=torch.int64)
 
@@ -52,8 +68,6 @@ def define_node_edge_multi_dims(
     """
     Define the node and edge for multi-dim grid graph, using PyTorch.
     """
-    # initialize the nodes
-    node_features = torch.arange(num_nodes, device=device, dtype=torch.float32).reshape(-1, 1)
 
     def compute_edges_batch(start, end, column_interval_number, strides, device):
         indices = torch.arange(start, end, device=device, dtype=torch.int64)
@@ -85,7 +99,14 @@ def define_node_edge_multi_dims(
     # Build the graph
     edges = torch.cat(edges, dim=0)
     edge_index = edges.t().contiguous()
+
+    # initialize the nodes
+    node_features = torch.arange(num_nodes, device=device, dtype=torch.float32).reshape(-1, 1)
     graph = Data(x=node_features, edge_index=edge_index)
+    # graph.pos store the multi-dim coordinates of each node (starts from [0, 0]), whereas graph.x store the 1D indices of each node (stars from 0).
+    node_features = torch.arange(num_nodes, device=device, dtype=torch.float32)
+    graph.pos = torch_unravel_index(node_features, column_interval_number, strides)
+
     print("Nodes:", graph.num_nodes)
     print("Edges:", graph.num_edges)
     # check the correctness of the graph edge number
@@ -105,13 +126,13 @@ def theoretical_edge_count(column_interval_number):
     return total_edges
 
 
-def build_train_set_1_input(query_set, unique_intervals, args, table_size):
+def build_train_set_1_input(query_set, column_intervals, args, table_size):
     """
     Build the training set for 1-input model from the query set and unique intervals.
     """
     X = []
     for query in query_set:
-        x = [v[-3] for v in unique_intervals.values()]
+        x = [v[-1] for v in column_intervals.values()]
         idxs, _, vals, _ = query
         for i, v in zip(idxs, vals):
             x[i] = v
@@ -127,7 +148,7 @@ def build_train_set_1_input(query_set, unique_intervals, args, table_size):
 
     # add boundary
     if args.boundary:
-        train = add_boundary_1_input(train, unique_intervals, args.boundary)
+        train = add_boundary_1_input(train, column_intervals)
 
     # shuffle and split
     # np.random.shuffle(train)
@@ -135,34 +156,34 @@ def build_train_set_1_input(query_set, unique_intervals, args, table_size):
     return X, y
 
 
-def add_boundary_1_input(train, unique_intervals, alpha=0.1):
+def add_boundary_1_input(train, column_intervals, alpha=0.1):
     return train
 
 
-def build_train_set_2_input(query_set, unique_intervals, args, table_size):
+def build_train_set_2_input(query_set, column_intervals, args, table_size):
     pass
 
 
-def add_boundary_2_input(train, unique_intervals, alpha=0.1):
+def add_boundary_2_input(train, column_intervals, alpha=0.1):
     return train
 
 
-def replace_with_index(X, unique_intervals):
+def replace_with_index(X, column_intervals):
     """
     Replace the values in X with the index in its corresponding column unique intervals.
     """
     for i in range(X.shape[1]):
-        mapping_list = torch.tensor(unique_intervals[i], device=device)
+        mapping_list = torch.tensor(column_intervals[i], device=device)
         X[:, i] = torch.searchsorted(mapping_list, X[:, i])
     return X
 
 
-def define_train_mask_for_graph(X, y, graph, num_nodes, strides, unique_intervals):
+def define_train_mask_for_graph(X, y, graph, num_nodes, strides, column_intervals):
     """
     Since our method is a semi-supervised learning method, we need to define the training mask for the graph.
     """
     X = torch.tensor(X, device=device)
-    X = replace_with_index(X, unique_intervals)
+    X = replace_with_index(X, column_intervals)
     selected_points = torch_ravel_multi_index(X, strides)
     graph.y = torch.full((num_nodes,), float("nan"))
     graph.y[selected_points] = torch.tensor(y).squeeze()
@@ -172,7 +193,7 @@ def define_train_mask_for_graph(X, y, graph, num_nodes, strides, unique_interval
     return graph
 
 
-def setup_graph(args, query_set, unique_intervals, column_interval_number, table_size):
+def setup_graph(args, query_set, column_intervals, column_interval_number, table_size):
     """
     Setup the training set and model based on the model type.
     X: Train X, query intervals. e.g. [a,b) for each column in 2-input model; (-inf, a] for each column in 1-input model.
@@ -185,12 +206,12 @@ def setup_graph(args, query_set, unique_intervals, column_interval_number, table
     graph = define_node_edge_multi_dims(
         column_interval_number, num_nodes, strides, batch_size=100000, device=device
     )
-    X, y = build_train_set_1_input(query_set, unique_intervals, args, table_size)
-    graph = define_train_mask_for_graph(X, y, graph, num_nodes, strides, unique_intervals)
+    X, y = build_train_set_1_input(query_set, column_intervals, args, table_size)
+    graph = define_train_mask_for_graph(X, y, graph, num_nodes, strides, column_intervals)
     return graph
 
 
-def Visualize_initial_Graph_2D(graph, column_interval_number):
+def Visualize_initial_Graph_2D(graph, column_interval_number, save_path):
     # visualize the initial graph structure
     G = to_networkx(graph, to_undirected=False)
     pos = {
@@ -208,5 +229,14 @@ def Visualize_initial_Graph_2D(graph, column_interval_number):
         arrows=True,
         arrowstyle="-|>",
     )
-    # plt.savefig("./images/visualization_2d.png", dpi=300)
-    plt.show()
+    plt.savefig(f"{save_path}/initial_graph.png", dpi=300)
+    # plt.show()
+
+
+if __name__ == "__main__":
+    column_interval_number = [100, 100, 100, 10]
+    num_nodes = get_num_nodes(column_interval_number)
+    strides = get_strides(column_interval_number)
+    graph = define_node_edge_multi_dims(
+        column_interval_number, num_nodes, strides, batch_size=100000, device="cpu"
+    )

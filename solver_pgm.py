@@ -20,6 +20,7 @@ def make_unique(query_set):
     return unique_query_set
 
 
+
 def generate_table_data(column_interval, int_x, n_column, column_interval_number):
     """Generate table data based on z3 model solution."""
     Table_Generated = np.empty((0, n_column), dtype=np.float32)
@@ -94,6 +95,7 @@ def Assign_query_to_interval_idx(query_set, n_column, column_interval, column_in
             )
     return query_to_interval_idx
 
+
 def define_solver(query_set, query_to_full_interval_idx, column_interval_number, penalty_weight=10):
     solver = Optimize()
     
@@ -106,6 +108,7 @@ def define_solver(query_set, query_to_full_interval_idx, column_interval_number,
     solver.add(bounds_constraints)
         
     query_constraints = []
+
     for k, v in query_to_full_interval_idx.items():
         card_true = query_set[k][-1]  # Get the true cardinality for this query
         
@@ -114,6 +117,7 @@ def define_solver(query_set, query_to_full_interval_idx, column_interval_number,
         x_index = np.ravel_multi_index(x_ind.T, column_interval_number)
         
         # Define the constraint that the sum should equal the cardinality
+
         query_constraint = (Sum([X[i] for i in x_index]) == card_true)
         query_constraints.append(query_constraint)
     solver.add(query_constraints)
@@ -129,6 +133,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
 parser.add_argument("--dataset", type=str, default="census", help="Dataset.")
 parser.add_argument("--query-size", type=int, default=10, help="query size")
+
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
 
@@ -151,11 +156,13 @@ print("\nBegin Loading Data ...")
 table, original_table_columns, sorted_table_columns, max_decimal_places = load_and_process_dataset(
     args.dataset, resultsPath
 )
+
 table_size = table.shape
 n_row, n_column = table_size
 print(f"{args.dataset}.csv")
 print(f"Table shape: {table_size}")
 print("Done.\n")
+
 
 print("Begin Generating Queries ...")
 rng = np.random.RandomState(42)
@@ -187,9 +194,11 @@ query_to_full_interval_idx = Fill_query_to_interval_idx(
 )
 print(f"query_to_full_interval_idx={query_to_full_interval_idx}")
 
+
 X, solver = define_solver(
     query_set, query_to_full_interval_idx, column_interval_number
 )
+
 
 tic = time.time()
 if solver.check() == sat:

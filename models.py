@@ -17,18 +17,22 @@ class ModelTypeError(ValueError):
 
 # model 1
 class GCN(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers=3):
         super(GCN, self).__init__()
-        self.conv1 = GCNConv(in_channels, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, out_channels)
+        self.layers = nn.ModuleList()
+        self.layers.append(GCNConv(in_channels, hidden_channels))
+        for _ in range(num_layers):
+            self.layers.append(GCNConv(hidden_channels, hidden_channels))
+        self.layers.append(GCNConv(hidden_channels, out_channels))
 
     def forward(self, graph):
-        x, edge_index = graph.x, graph.edge_index
-        x = self.conv1(x, edge_index)
-        x = F.relu(x)
-        x = self.conv2(x, edge_index)
-        x = F.sigmoid(x)
-        x = torch.max(x, dim=1)[0]  # torch.max(x, dim=1, keepdim=True)[0]
+        # x, edge_index = graph.x, graph.edge_index
+        x, edge_index = graph.pos, graph.edge_index
+        for i, layer in enumerate(self.layers[:-1]):
+            x = layer(x, edge_index)
+            x = F.silu(x)
+        x = self.layers[-1](x, edge_index)
+        # x = F.sigmoid(x)
         return x
 
 
@@ -37,11 +41,11 @@ class MaxAggConv(MessagePassing):
     def __init__(self, in_channels, out_channels):
         super(MaxAggConv, self).__init__(aggr="max")  # Use 'max' as the aggregation method
         # Add a linear transformation (learnable weights)
-        self.lin = nn.Linear(in_channels, out_channels)  #
+        self.lin = nn.Linear(in_channels, out_channels)
 
     def forward(self, x, edge_index):
         # Apply the linear transformation before propagating
-        x = self.lin(x)  #
+        x = self.lin(x)
         return self.propagate(edge_index, x=x)
 
     def message(self, x_j):
@@ -55,16 +59,26 @@ class MaxAggConv(MessagePassing):
 
 
 class GCN_2(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers=3):
         super(GCN_2, self).__init__()
-        self.conv1 = MaxAggConv(in_channels, hidden_channels)
-        self.conv2 = MaxAggConv(hidden_channels, out_channels)
+        self.layers = nn.ModuleList()
+        # self.batch_norms = nn.ModuleList()
+        self.layers.append(MaxAggConv(in_channels, hidden_channels))
+        # self.batch_norms.append(nn.BatchNorm1d(hidden_channels))
+        for _ in range(num_layers):
+            self.layers.append(MaxAggConv(hidden_channels, hidden_channels))
+            # self.batch_norms.append(nn.BatchNorm1d(hidden_channels))
+        self.layers.append(MaxAggConv(hidden_channels, out_channels))
 
     def forward(self, graph):
         x, edge_index = graph.x, graph.edge_index
-        x = self.conv1(x, edge_index)
-        x = F.relu(x)
-        x = self.conv2(x, edge_index)
+        for i, layer in enumerate(self.layers[:-1]):
+            x = layer(x, edge_index)
+            x = F.silu(x)
+            # x = self.batch_norms[i](x)
+        # x = F.relu(x)
+        x = self.layers[-1](x, edge_index)
+        # x = torch.sigmoid(x)
         return x
 
 
@@ -74,7 +88,8 @@ class BaseModel:
         self.args = args
         self.path = path
         self.graph = graph
-        self.model = GCN_2(*args.channels).to(device)
+        self.model = GCN(*args.channels, args.num_layers).to(device)
+        # self.model = GCN_2(*args.channels, args.num_layers).to(device)
         self.optimizer = self._set_optimizer()
         self.criterion = self._set_loss_function()
 
@@ -129,7 +144,7 @@ class BaseModel:
         print("Model loaded.")
 
 
-def set_up_model(args, query_set, unique_intervals, modelPath, table_size):
+def set_up_model(args, query_set, column_intervals, modelPath, table_size):
     if args.model == "1-input":
         pass
     elif args.model == "2-input":
@@ -140,31 +155,41 @@ def set_up_model(args, query_set, unique_intervals, modelPath, table_size):
 
 def Visualize_compare_Graph_2D(
     graph,
-    column_interval_number,
     out,
+    args,
+    save_path,
     figsize=(15, 6),
-    to_undirected=False,
-    with_labels=True,
+    to_undirected=True,
+    with_labels=False,
 ):
-    # compare graph we learned with the initial graph
     fig, axs = plt.subplots(1, 2, figsize=figsize)
     G = to_networkx(graph, to_undirected=to_undirected)
-    pos = {
-        i: np.array(np.unravel_index(i, column_interval_number)) + 1
-        for i in range(graph.x.shape[0])
-    }
-    # ground truth
+    # pos = {
+    #     i: np.array(np.unravel_index(i, column_interval_number)) + 1
+    #     for i in range(graph.x.shape[0])
+    # }
+    pos = {i: v for i, v in enumerate(graph.pos)}
+    vmin, vmax = 0, 1  # color range (0, 1)
+
+    # Plot 1: Ground truth
     nx.draw(
         G,
         pos,
         with_labels=with_labels,
         node_color=graph.y.cpu(),
         cmap=plt.get_cmap("coolwarm"),
+        vmin=vmin,
+        vmax=vmax,
         ax=axs[0],
     )
     axs[0].set_title("Ground Truth")
 
-    # model output
+    # Add labels (selectivity) to nodes
+    if args.plot_labels:
+        labels = {i: f"{val:.2f}" for i, val in enumerate(graph.y.cpu()) if not torch.isnan(val)}
+        nx.draw_networkx_labels(G, pos, labels=labels, ax=axs[0])
+
+    # Plot 2: Model output
     masked_out = torch.full(out.shape, float("nan"))
     masked_out[graph.train_mask] = out[graph.train_mask]
     nx.draw(
@@ -173,11 +198,32 @@ def Visualize_compare_Graph_2D(
         with_labels=with_labels,
         node_color=masked_out.detach().cpu(),
         cmap=plt.get_cmap("coolwarm"),
+        vmin=vmin,
+        vmax=vmax,
         ax=axs[1],
     )
     axs[1].set_title("Model output")
 
-    plt.colorbar(axs[1].collections[0], ax=axs[1])
+    # Add labels (selectivity) to nodes
+    if args.plot_labels:
+        labels_out = {
+            i: f"{val:.2f}" for i, val in enumerate(masked_out.cpu()) if not torch.isnan(val)
+        }
+        nx.draw_networkx_labels(G, pos, labels=labels_out, ax=axs[1])
+
+    # Set a shared colorbar
+    plt.colorbar(axs[1].collections[0], ax=axs[1], label="Selectivity")
+    # colorbar = fig.colorbar(
+    #     axs[1].collections[0],
+    #     ax=axs,
+    #     orientation="vertical",
+    #     fraction=0.05,
+    #     pad=0.05,
+    #     location="right",
+    # )
+    # colorbar.set_label("Node Values")
+    # colorbar.set_ticks([vmin, vmax])
+
     plt.tight_layout()
-    # plt.savefig("./images/2D_compare.png", dpi=300)
+    plt.savefig(f"{save_path}/compare_plot.png", dpi=300)
     plt.show()
