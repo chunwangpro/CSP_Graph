@@ -13,7 +13,7 @@ from utils import *
 class ModelTypeError(ValueError):
     def __init__(self, message="Invalid model type. Please use '1-input' or '2-input'."):
         super().__init__(message)
-        
+
 
 class NodeDataLoader:
     def __init__(self, graph, batch_size):
@@ -24,7 +24,7 @@ class NodeDataLoader:
     def __iter__(self):
         indices = self.train_idx[torch.randperm(len(self.train_idx))]  # Shuffle indices each epoch
         for start in range(0, len(indices), self.batch_size):
-            batch_nodes = indices[start:start + self.batch_size]
+            batch_nodes = indices[start : start + self.batch_size]
             yield batch_nodes
 
     def __len__(self):
@@ -154,14 +154,16 @@ class BaseModel:
 
         # avg_loss = total_loss / len(self.node_loader.train_idx)
         # return avg_loss
-    
+
     def evaluate(self):
         """Evaluate the model on test nodes"""
         self.model.eval()
         with torch.no_grad():
             out = self.model(self.graph).squeeze(dim=-1)
             # Calculate MSE only for test nodes
-            test_loss = self.criterion(out[self.graph.test_mask], self.graph.y[self.graph.test_mask])
+            test_loss = self.criterion(
+                out[self.graph.test_mask], self.graph.y[self.graph.test_mask]
+            )
             print(f"Test MSE: {test_loss.item()}")
             return test_loss.item()
 
@@ -232,7 +234,7 @@ def Visualize_compare_Graph_2D(
         vmax=vmax,
         ax=axs[0],
         node_size=node_size,
-        width=edge_linewidth
+        width=edge_linewidth,
     )
     axs[0].set_title("Ground Truth", fontsize=font_size)
 
@@ -250,20 +252,30 @@ def Visualize_compare_Graph_2D(
         vmax=vmax,
         ax=axs[1],
         node_size=node_size,
-        width=edge_linewidth
+        width=edge_linewidth,
     )
     axs[1].set_title("Model Prediction", fontsize=font_size)
 
     # Add labels if required
     if args.plot_labels:
-        train_labels = {i: f"{val:.2f}" for i, val in enumerate(graph.y[train_indices].cpu()) if not torch.isnan(val)}
-        train_pred_labels = {i: f"{val:.2f}" for i, val in enumerate(out[train_indices].cpu()) if not torch.isnan(val)}
-        
+        train_labels = {
+            i: f"{val:.2f}"
+            for i, val in enumerate(graph.y[train_indices].cpu())
+            if not torch.isnan(val)
+        }
+        train_pred_labels = {
+            i: f"{val:.2f}"
+            for i, val in enumerate(out[train_indices].cpu())
+            if not torch.isnan(val)
+        }
+
         nx.draw_networkx_labels(G, pos, labels=train_labels, ax=axs[0], font_size=font_size)
         nx.draw_networkx_labels(G, pos, labels=train_pred_labels, ax=axs[1], font_size=font_size)
 
     # Add a shared color bar
-    cbar = fig.colorbar(axs[1].collections[0], ax=axs, orientation='horizontal', fraction=0.05, pad=0.05)
+    cbar = fig.colorbar(
+        axs[1].collections[0], ax=axs, orientation="horizontal", fraction=0.05, pad=0.05
+    )
     cbar.set_label(colorbar_label, fontsize=font_size)
     cbar.ax.tick_params(labelsize=font_size - 4)
 

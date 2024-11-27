@@ -192,7 +192,10 @@ def define_train_mask_for_graph(X, y, graph, num_nodes, strides, column_interval
     graph.train_mask = train_mask
     return graph
 
-def define_train_test_masks_for_graph(X, y, graph, num_nodes, strides, column_intervals, test_ratio=0.2):
+
+def define_train_test_masks_for_graph(
+    X, y, graph, num_nodes, strides, column_intervals, test_ratio=0.2
+):
     """
     Define train and test masks for the graph, creating a semi-supervised split.
     """
@@ -201,11 +204,11 @@ def define_train_test_masks_for_graph(X, y, graph, num_nodes, strides, column_in
     selected_points = torch_ravel_multi_index(X, strides)
     graph.y = torch.full((num_nodes,), float("nan"))
     graph.y[selected_points] = torch.tensor(y).squeeze()
-    
+
     # Create train mask
     train_mask = torch.zeros(num_nodes, dtype=torch.bool)
     train_mask[selected_points] = True
-    
+
     # Now create test mask by sampling a portion of the selected points
     test_mask = torch.zeros(num_nodes, dtype=torch.bool)
     num_test = int(len(selected_points) * test_ratio)
