@@ -9,6 +9,7 @@ from models import *
 from preprocessing import *
 from utils import *
 from plot_util import *
+from ce_util import *
 
 def make_unique(query_set):
     seen = set()
@@ -246,6 +247,7 @@ print(df)
 print(f"\nOriginal  table shape : {table_size}")
 print(f"Generated table shape : {Table_Generated.shape}\n")
 print(f"# of matched rows : {count_matching_rows(table, Table_Generated)}\n")
+print(f"CE: {AR_ComputeCE(table, Table_Generated)}")
 
 # output_dir = 'results/'
 # plt.figure()
