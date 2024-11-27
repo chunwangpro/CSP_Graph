@@ -20,57 +20,6 @@ def make_unique(query_set):
     return unique_query_set
 
 
-def convert_queries_to_constraints(num_rows, num_columns, queries, max_col_val):
-    solver = Solver()
-
-    # Create a 2D list of z3 integer variables representing the table
-    db = [[Int(f"cell_{r}_{c}") for c in range(num_columns)] for r in range(num_rows)]
-
-    # Add domain constraints (values should be in a reasonable range)
-    for row in db:
-        for i in range(len(row)):
-            cell = row[i]
-            solver.add(cell >= 0, cell <= max_col_val[i])
-
-    # Convert each query into a z3 constraint and add it to the solver
-    for idxs, ops, vals, card in queries:
-
-        # Add cardinality constraint (number of rows satisfying the condition)
-        count = Sum(
-            [
-                If(
-                    And(
-                        *[
-                            (
-                                db[r][idx] <= vals[i]
-                                if ops[i] == "<="
-                                else (
-                                    db[r][idx] < vals[i]
-                                    if ops[i] == "<"
-                                    else (
-                                        db[r][idx] > vals[i]
-                                        if ops[i] == ">"
-                                        else (
-                                            db[r][idx] >= vals[i]
-                                            if ops[i] == ">="
-                                            else db[r][idx] == vals[i]
-                                        )
-                                    )
-                                )
-                            )
-                            for i, idx in enumerate(idxs)
-                        ]
-                    ),
-                    1,
-                    0,
-                )
-                for r in range(num_rows)
-            ]
-        )
-        solver.add(count == card)
-
-    return solver, db
-
 
 def generate_table_data(column_interval, int_x, n_column, column_interval_number):
     """Generate table data based on z3 model solution."""
@@ -146,28 +95,20 @@ def Assign_query_to_interval_idx(query_set, n_column, column_interval, column_in
             )
     return query_to_interval_idx
 
-def define_query_error_constraints(query_set, query_to_full_interval_idx, column_interval_number):
-    """
-    the sum of selected variables X equals the cardinality of each query.
+
+def define_solver(query_set, query_to_full_interval_idx, column_interval_number, penalty_weight=10):
+    solver = Optimize()
     
-    Args:
-    - query_set: List of queries, where each query is a list in the form [idxs, ops, vals, cardinality].
-    - query_to_full_interval_idx: Dictionary with query indices as keys and lists of interval indices for each column as values.
-    - column_interval_number: List where each element is the number of unique intervals for each column.
-    
-    Returns:
-    - constraints: List of Z3 constraints.
-    """
     # Initialize an array of Z3 variables for each possible interval index
     total_x = np.product(column_interval_number)
 
-    constraints = []
     X = [Int(f"x_{i}") for i in range(total_x)]
-    print(X)
-    for x in X:
-        constraints.append(0 <= x)
-        constraints.append(x <= num_rows)
+    
+    bounds_constraints = [And(xi >= 0, xi <= n_row) for xi in X]
+    solver.add(bounds_constraints)
         
+    query_constraints = []
+
     for k, v in query_to_full_interval_idx.items():
         card_true = query_set[k][-1]  # Get the true cardinality for this query
         
@@ -176,18 +117,23 @@ def define_query_error_constraints(query_set, query_to_full_interval_idx, column
         x_index = np.ravel_multi_index(x_ind.T, column_interval_number)
         
         # Define the constraint that the sum should equal the cardinality
-        constraint = (Sum([X[i] for i in x_index]) == card_true)
-        constraints.append(constraint)
+
+        query_constraint = (Sum([X[i] for i in x_index]) == card_true)
+        query_constraints.append(query_constraint)
+    solver.add(query_constraints)
     
-    # constraint = (Sum([X[i] for i in range(total_x)]) == num_rows)
-    # constraints.append(constraint)
+    # Add the total constraint as a soft constraint with a penalty weight
+    total_constraint_error = Abs(Sum(X) - n_row)
+    solver.add_soft(total_constraint_error == 0, weight=penalty_weight)  # Soften only the total constraint
     
-    return constraints
+    return X, solver
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
-parser.add_argument("--dataset", type=str, default="test-2", help="Dataset.")
-parser.add_argument("--query-size", type=int, default=30, help="query size")
+parser.add_argument("--dataset", type=str, default="census", help="Dataset.")
+parser.add_argument("--query-size", type=int, default=10, help="query size")
+
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
 
@@ -210,25 +156,7 @@ print("\nBegin Loading Data ...")
 table, original_table_columns, sorted_table_columns, max_decimal_places = load_and_process_dataset(
     args.dataset, resultsPath
 )
-max_col_val = np.max(table, axis=0)
-table_size = table.shape
-num_rows = table_size[0]
-num_columns = table_size[1]
-print(f"{args.dataset}.csv,    shape: {table_size}")
-print("Done.\n")
 
-
-print("Begin Generating Queries Set ...")
-rng = np.random.RandomState(42)
-query_set = [generate_random_query(table, args, rng) for _ in tqdm(range(args.query_size))]
-query_set = make_unique(query_set)
-print("Done.\n")
-
-
-print("\nBegin Loading Data ...")
-table, original_table_columns, sorted_table_columns, max_decimal_places = load_and_process_dataset(
-    args.dataset, resultsPath
-)
 table_size = table.shape
 n_row, n_column = table_size
 print(f"{args.dataset}.csv")
@@ -266,11 +194,10 @@ query_to_full_interval_idx = Fill_query_to_interval_idx(
 )
 print(f"query_to_full_interval_idx={query_to_full_interval_idx}")
 
-solver = Solver()
-query_error_list = define_query_error_constraints(
+
+X, solver = define_solver(
     query_set, query_to_full_interval_idx, column_interval_number
 )
-solver.add(query_error_list)
 
 
 tic = time.time()
