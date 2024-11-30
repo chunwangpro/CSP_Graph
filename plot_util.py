@@ -3,14 +3,16 @@ import matplotlib.pyplot as plt
 import os
 
 def find_overlaps(ground_truth, generated):
-    """Find overlapping points between ground_truth and generated."""
-    # Convert both datasets to tuples of integers for hashable row comparison
-    ground_truth_tuples = {tuple(row) for row in np.round(ground_truth, decimals=5)}
-    generated_tuples = {tuple(row) for row in np.round(generated, decimals=5)}
+    # Convert both datasets to integers for consistent comparison
+    ground_truth_int = ground_truth.astype(int)
+    generated_int = generated.astype(int)
 
-    # Find overlaps
-    overlaps = np.array([row for row in ground_truth_tuples if row in generated_tuples])
+    # Use a set for efficient row matching
+    ground_truth_tuples = {tuple(row) for row in ground_truth_int}
+    overlaps = np.array([row for row in generated_int if tuple(row) in ground_truth_tuples])
+
     return overlaps
+
 
 def plot_2d(ground_truth, generated, filename='scatter_plot_2d_highlighted_overlap.png'):
     """2D scatter plot highlighting overlaps between Ground-Truth and Generated."""
@@ -19,6 +21,7 @@ def plot_2d(ground_truth, generated, filename='scatter_plot_2d_highlighted_overl
 
     # Find overlapping points
     overlaps = find_overlaps(ground_truth, generated)
+    print(f"Number of overlapping points (with duplicates): {overlaps.size}")
 
     plt.figure()
 
@@ -52,6 +55,7 @@ def plot_3d(ground_truth, generated, filename='scatter_plot_3d_highlighted_overl
     
     # Find overlapping points
     overlaps = find_overlaps(ground_truth, generated)
+    print(f"Number of overlapping points (with duplicates): {overlaps.size}")
 
     # Create the plot
     fig = plt.figure()
@@ -92,6 +96,7 @@ def plot_3d_subplots(ground_truth, generated, filename='scatter_subplot_3d_highl
     
     # Find overlapping points
     overlaps = find_overlaps(ground_truth, generated)
+    print(f"Number of overlapping points (with duplicates): {overlaps.size}")
 
     # Create the figure with two subplots
     fig = plt.figure(figsize=(12, 8))
