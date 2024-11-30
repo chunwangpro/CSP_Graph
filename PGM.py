@@ -10,6 +10,7 @@ from scipy import optimize
 
 from dataset import *
 from utils import *
+from plot_util import *
 
 
 def Find_column_interval_idxs_by_op(column, index, op, column_interval_number):
@@ -133,7 +134,20 @@ def randomized_rouding(x):
     return int_x
 
 
+def random_sample(left, right, m, step=1):
+    """
+    Args:
+        left: column_interval[j][start]
+        right: column_interval[j][start+1]
+        m: int_x[i]
+    """
+    interval = np.arange(left, right, step)
+    samples = np.random.choice(interval, size=m, replace=True)
+    return samples
+
+
 def generate_table_data(column_interval, int_x, n_column, column_interval_number):
+    """Generate table data based on z3 model solution."""
     Table_Generated = np.empty((0, n_column), dtype=np.float32)
     column_to_x = [list(range(i)) for i in column_interval_number]
     all_x = np.array([x for x in itertools.product(*column_to_x)], dtype=np.uint16)
@@ -141,8 +155,22 @@ def generate_table_data(column_interval, int_x, n_column, column_interval_number
     for i in range(len(int_x)):
         if int_x[i] < 1:
             continue
-        vals = [column_interval[j][all_x[i][j]] for j in range(n_column)]
-        subtable = np.tile(vals, (int_x[i], 1))
+        try:
+            # Use random_sample to generate values for each column
+            subtable = np.array([
+                [
+                    random_sample(
+                        left=column_interval[j][all_x[i][j]],
+                        right=column_interval[j][all_x[i][j]+1],
+                        m=1,  # Generate one value per cell
+                    )[0]  # Extract the single sample value
+                    for j in range(n_column)
+                ]
+                for _ in range(int_x[i])  # Repeat for the number of rows
+            ], dtype=np.float32)
+        except:
+            vals = [column_interval[j][all_x[i][j]] for j in range(n_column)]
+            subtable = np.tile(vals, (int_x[i], 1))
         Table_Generated = np.concatenate((Table_Generated, subtable), axis=0)
     return Table_Generated
 
@@ -150,7 +178,7 @@ def generate_table_data(column_interval, int_x, n_column, column_interval_number
 # wine, query 11, (1,3) is good
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
-parser.add_argument("--dataset", type=str, default="census", help="Dataset.")
+parser.add_argument("--dataset", type=str, default="census-3", help="Dataset.")
 parser.add_argument("--query-size", type=int, default=50, help="query size")
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
@@ -258,3 +286,5 @@ recovered_Table_Generated = recover_table_as_original(
 )
 recovered_Table_Generated.to_csv(f"{resultsPath}/generated_table.csv", index=False, header=False)
 print("Done.\n")
+
+plot_3d_subplots(table, Table_Generated, f'plot3d_{args.query_size}.png')

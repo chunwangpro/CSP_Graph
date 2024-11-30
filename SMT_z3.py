@@ -1,4 +1,5 @@
 import argparse
+import random
 import time
 import itertools
 
@@ -21,6 +22,17 @@ def make_unique(query_set):
             unique_query_set.append(row)
     return unique_query_set
 
+def random_sample(left, right, m, step=1):
+    """
+    Args:
+        left: column_interval[j][start]
+        right: column_interval[j][start+1]
+        m: int_x[i]
+    """
+    interval = np.arange(left, right, step)
+    samples = np.random.choice(interval, size=m, replace=True)
+    return samples
+
 
 def generate_table_data(column_interval, int_x, n_column, column_interval_number):
     """Generate table data based on z3 model solution."""
@@ -31,8 +43,22 @@ def generate_table_data(column_interval, int_x, n_column, column_interval_number
     for i in range(len(int_x)):
         if int_x[i] < 1:
             continue
-        vals = [column_interval[j][all_x[i][j]] for j in range(n_column)]
-        subtable = np.tile(vals, (int_x[i], 1))
+        try:
+            # Use random_sample to generate values for each column
+            subtable = np.array([
+                [
+                    random_sample(
+                        left=column_interval[j][all_x[i][j]],
+                        right=column_interval[j][all_x[i][j]+1],
+                        m=1,  # Generate one value per cell
+                    )[0]  # Extract the single sample value
+                    for j in range(n_column)
+                ]
+                for _ in range(int_x[i])  # Repeat for the number of rows
+            ], dtype=np.float32)
+        except:
+            vals = [column_interval[j][all_x[i][j]] for j in range(n_column)]
+            subtable = np.tile(vals, (int_x[i], 1))
         Table_Generated = np.concatenate((Table_Generated, subtable), axis=0)
     return Table_Generated
 
@@ -153,7 +179,7 @@ def count_matching_rows(arr1, arr2):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="1-input", help="model type")
-parser.add_argument("--dataset", type=str, default="census-2", help="Dataset.")
+parser.add_argument("--dataset", type=str, default="census-3", help="Dataset.")
 parser.add_argument("--query-size", type=int, default=100, help="query size")
 parser.add_argument("--min-conditions", type=int, default=1, help="min num of query conditions")
 parser.add_argument("--max-conditions", type=int, default=2, help="max num of query conditions")
@@ -249,16 +275,7 @@ print(f"Generated table shape : {Table_Generated.shape}\n")
 print(f"# of matched rows : {count_matching_rows(table, Table_Generated)}\n")
 print(f"CE: {AR_ComputeCE(table, Table_Generated)}")
 
-# output_dir = 'results/'
-# plt.figure()
-# plt.scatter(table[:, 0], table[:, 1], label='Table')
-# plt.scatter(Table_Generated[:, 0], Table_Generated[:, 1], label='Table_Generated')
-# plt.legend()
-# plt.title("Scatter Plot of Table and Table_Generated")
-# plt.savefig(f'{output_dir}/scatter_plot.png')
-# plt.close()
-
-plot_2d(table, Table_Generated)
+plot_3d_subplots(table, Table_Generated, f'plot3d_{args.query_size}.png')
 # export_to_csv(table, "results/ground-truth.csv")
 # export_to_csv(Table_Generated, "results/generated.csv")
 # plot_3d(table, Table_Generated)
