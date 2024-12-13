@@ -195,3 +195,27 @@ plt.colorbar(axs[1].collections[0], ax=axs[1])
 plt.tight_layout()
 plt.savefig("./images/2D_demo.png", dpi=300)
 # plt.show()
+
+
+#### visualize only the model output
+# visualization
+fig, axs = plt.subplots(1, 1, figsize=(6, 4))
+# model output
+masked_out = torch.full(out.shape, float("nan"))
+masked_out[graph.train_mask] = out[graph.train_mask]
+nx.draw(
+    G,
+    pos,
+    with_labels=True,
+    node_color=masked_out.detach().cpu(),
+    cmap=plt.get_cmap("coolwarm"),
+    ax=axs,
+    # vmin=0,
+    # vmax=1,
+)
+# axs.set_title("Model output")
+
+plt.colorbar(axs.collections[0], ax=axs)
+plt.tight_layout()
+plt.savefig("./images/2D_demo_only_model.png", dpi=300)
+# plt.show()
