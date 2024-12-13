@@ -1,24 +1,46 @@
 # CSP_Graph
 
+## Goal
+This is the python code of "Graph Based Database Generation from Query Constraints".
+
+The goal is to leverage graph method (GCN) to learn the Cumulative Density Function (CDF) of synthetic database generation problem. The query workloads are considered as Constraint Satisfaction Problems (CSPs).
+
+## Datasets
+
+- census-2
+- census-3
+- wine-2
+- wine-3
+
+## Basic Usage
+
+### Our model - GCN
+```python
+python train.py --dataset wine-3 --query-size 10000 --channels 2,16,1 --num_layers 3 --epochs 3000 --bs 1000 --lr 1e-2 --opt adam --loss MSE
+```
+
+### Baseline - PGM
+```python
+python PGM.py --dataset wine-3 --query-size 10
+```
+
+### Baseline - SMT
+```python
+python SMT_z3.py --dataset wine-3 --query-size 10
+```
+
 ## File Structure
 
 - Key components:
 
-  - dataset.py : process the dataset.
-  - utils.py : query related functions.
-  - preprocessing.py : graph related functions.
-  - models.py : model related functions.
+  - dataset.py : Process the datasets.
+  - utils.py : Utilitiy functions.
+  - preprocessing.py : Build the graph
+  - models.py : Build the model
+- demo.py : simple 2D demo for proposal.
 
-- Main implements:
-  - demo.py : demo for proposal.
-  - 2D.py : 2d implement of test-2.csv (1000 query).
-  - 3D.py : 3d implement of test-3.csv (1000 query).
 
-## Goal
-
-We use graph method (GCN, etc.) to solve Constraint Satisfaction Problems (CSPs), start with 2D, 3D, and expand it toward up to 10 dimensions if possible.
-
-## Fomulation
+<!-- ## Fomulation
 
 Consider a 2D version: For a bivariate distribution, represented by x, y, we have the following constraints:
 
@@ -49,10 +71,10 @@ Consider a 2D version: For a bivariate distribution, represented by x, y, we hav
 
 - Give perfect prediction to further distribution constraints, like:
 - P( X <= 1, Y <= 3) = ?
-- P( X <= 4) = ?
+- P( X <= 4) = ? -->
 
 
-## Language and possible package
+## Require environment
 
 - Python
 - PyTorch

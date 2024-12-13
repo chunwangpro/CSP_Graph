@@ -9,8 +9,8 @@ import time
 from scipy import optimize
 
 from dataset import *
-from utils import *
 from plot_util import *
+from utils import *
 
 
 def Find_column_interval_idxs_by_op(column, index, op, column_interval_number):
@@ -157,17 +157,22 @@ def generate_table_data(column_interval, int_x, n_column, column_interval_number
             continue
         try:
             # Use random_sample to generate values for each column
-            subtable = np.array([
+            subtable = np.array(
                 [
-                    random_sample(
-                        left=column_interval[j][all_x[i][j]],
-                        right=column_interval[j][all_x[i][j]+1],
-                        m=1,  # Generate one value per cell
-                    )[0]  # Extract the single sample value
-                    for j in range(n_column)
-                ]
-                for _ in range(int_x[i])  # Repeat for the number of rows
-            ], dtype=np.float32)
+                    [
+                        random_sample(
+                            left=column_interval[j][all_x[i][j]],
+                            right=column_interval[j][all_x[i][j] + 1],
+                            m=1,  # Generate one value per cell
+                        )[
+                            0
+                        ]  # Extract the single sample value
+                        for j in range(n_column)
+                    ]
+                    for _ in range(int_x[i])  # Repeat for the number of rows
+                ],
+                dtype=np.float32,
+            )
         except:
             vals = [column_interval[j][all_x[i][j]] for j in range(n_column)]
             subtable = np.tile(vals, (int_x[i], 1))
@@ -287,4 +292,4 @@ recovered_Table_Generated = recover_table_as_original(
 recovered_Table_Generated.to_csv(f"{resultsPath}/generated_table.csv", index=False, header=False)
 print("Done.\n")
 
-plot_3d_subplots(table, Table_Generated, f'plot3d_{args.query_size}.png')
+plot_3d_subplots(table, Table_Generated, f"plot3d_{args.query_size}.png")
