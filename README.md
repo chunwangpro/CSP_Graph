@@ -31,14 +31,12 @@ python SMT_z3.py --dataset wine-3 --query-size 10
 
 ## File Structure
 
-- Key components:
-
-  - dataset.py : Process the datasets.
-  - utils.py / plot_util.py / ce_util.py : Utilitiy functions.
-  - preprocessing.py : Build the graph
-  - models.py : Build the GCN model.
-  - run_experiments.py: Script for PGM / SMT baseline to collect results.
-  - demo.py : simple 2D demo for proposal.
+- dataset.py : Process the datasets.
+- utils.py / plot_util.py / ce_util.py : Utilitiy functions.
+- preprocessing.py : Build the graph
+- models.py : Build the GCN model.
+- run_experiments.py: Script for PGM / SMT baseline to collect results.
+- demo.py : simple 2D demo for proposal.
 
 
 <!-- ## Fomulation
