@@ -1,16 +1,13 @@
 # CSP_Graph
 
-## Goal
 This is the python code of "Graph Based Database Generation from Query Constraints".
 
 The goal is to leverage graph method (GCN) to learn the Cumulative Density Function (CDF) of synthetic database generation problem. The query workloads are considered as Constraint Satisfaction Problems (CSPs).
 
 ## Datasets
 
-- census-2
-- census-3
-- wine-2
-- wine-3
+- census
+- wine
 
 ## Basic Usage
 
